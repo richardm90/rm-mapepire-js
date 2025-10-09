@@ -51,20 +51,15 @@ class rmPoolConnection {
 
     this.log(`Initialized, job name=${this.jobName}`, 'info');
 
-    this.log(`GOT HERE #1`, 'info');
-
     // Output connection details in IBM i joblog
+    // TODO: process.env.PROJECT_NAME not defined
     const message = `${process.env.PROJECT_NAME}: PoolId=${this.poolId}, Connection=${this.poolIndex}`;
-
-    this.log(`GOT HERE #2`, 'info');
-
     const command = `CALL SYSTOOLS.LPRINTF('${message}')`;
-
-    this.log(`GOT HERE #3`, 'info');
-
     this.log(`Running command: ${command}`, 'info');
 
-    await this.connection.execute(command);
+    const result = await this.connection.execute(command);
+
+    console.dir(result, { depth: 5 });
 
     this.log(`Just finished running command: ${command}`, 'info');
 
