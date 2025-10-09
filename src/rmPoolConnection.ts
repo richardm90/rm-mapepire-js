@@ -51,9 +51,16 @@ class rmPoolConnection {
 
     this.log(`Initialized, job name=${this.jobName}`, 'info');
 
+    this.log(`GOT HERE #1`, 'info');
+
     // Output connection details in IBM i joblog
     const message = `${process.env.PROJECT_NAME}: PoolId=${this.poolId}, Connection=${this.poolIndex}`;
+
+    this.log(`GOT HERE #2`, 'info');
+
     const command = `CALL SYSTOOLS.LPRINTF('${message}')`;
+
+    this.log(`GOT HERE #3`, 'info');
 
     this.log(`Running command: ${command}`);
 
