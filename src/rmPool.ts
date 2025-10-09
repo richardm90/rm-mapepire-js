@@ -23,13 +23,18 @@ class rmPool {
    * @param {boolean} debug - Boolean, display verbose output from the application to the console.
    * @constructor
    */
-  constructor(config: { id: string; config: PoolConfig }, debug: boolean = false) {
+  constructor(config: { id: string; config?: PoolConfig }, debug: boolean = false) {
     this.connections = [];
 
     // Set pool configuration
     this.id = config.id;
-    this.config = config.config;
-    const opts = this.config.PoolOptions || {};
+    this.config = config.config || {
+      id: config.id,
+      PoolOptions: {
+        creds: { host: '', user: '', password: '' }
+      }
+    };
+    const opts = this.config.PoolOptions || { creds: { host: '', user: '', password: '' } };
 
     this.creds = opts.creds;
     this.maxSize = opts.maxSize || 20;
@@ -102,8 +107,10 @@ class rmPool {
    */
   async retireAll(): Promise<boolean> {
     try {
-      for (let i = 0; i < this.connections.length; i += 1) {
-        await this.retire(this.connections[i]);
+      // Retire connections in reverse order or use a while loop
+      // to avoid issues with array indices shifting
+      while (this.connections.length > 0) {
+        await this.retire(this.connections[0]);
       }
     } catch (error) {
       const reason = new Error('rmPool: Failed to retireAll()');
