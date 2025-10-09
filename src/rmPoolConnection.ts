@@ -53,7 +53,13 @@ class rmPoolConnection {
 
     // Output connection details in IBM i joblog
     const message = `${process.env.PROJECT_NAME}: PoolId=${this.poolId}, Connection=${this.poolIndex}`;
-    await this.connection.execute(`CALL SYSTOOLS.LPRINTF('${message}')`);
+    const command = `CALL SYSTOOLS.LPRINTF('${message}')`;
+
+    this.log(`Running command: ${command}`);
+
+    await this.connection.execute(command);
+
+    this.log(`Just finished running command: ${command}`);
 
     // Set connection (IBM i job) environment variables
     for (let i = 0; i < this.envvars.length; i += 1) {
