@@ -1,6 +1,6 @@
 {
   "name": "rm-mapepire-js",
-  "description": "Wrapper over DB2 client for Node.js",
+  "description": "Wrapper over the IBM Mapepire DB2 client for Node.js",
   "version": "0.1.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

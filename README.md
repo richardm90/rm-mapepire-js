@@ -1,6 +1,7 @@
 # rm-mapepire-js
 
-A TypeScript wrapper over DB2 client for Node.js, providing connection pooling and management for IBM i databases.
+A TypeScript wrapper over the IBM Mapepire DB2 client for Node.js, providing
+connection pooling and management for IBM i databases.
 
 ## Installation
 
