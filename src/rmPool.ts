@@ -23,12 +23,12 @@ class rmPool {
    * @param {boolean} debug - Boolean, display verbose output from the application to the console.
    * @constructor
    */
-  constructor(config: { id: string; config?: PoolConfig }, debug: boolean = false) {
+  constructor(config: { id: string; config: PoolConfig }, debug: boolean = false) {
     this.connections = [];
 
     // Set pool configuration
     this.id = config.id;
-    this.config = config.config || { id: config.id };
+    this.config = config.config;
     const opts = this.config.PoolOptions || {};
 
     this.creds = opts.creds;
