@@ -70,7 +70,7 @@ await pool.detach(connection);
   - `size`: Number of connections to add when pool is exhausted (default: 8)
   - `expiry`: Expiry time for new connections in minutes
 - `dbConnectorDebug`: Enable debug logging (default: false)
-- `jdbcOptions`: JDBC options object - a standard Mapepire JDBCOptions object
+- `JDBCOptions`: JDBC options object - a standard Mapepire JDBCOptions object
 - `envvars`: Array of environment variables to set for each connection
 
 ## API Reference

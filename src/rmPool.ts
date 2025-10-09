@@ -1,9 +1,7 @@
-import { JDBCOptions, DaemonServer } from '@ibm/mapepire-js';
 import rmPoolConnection from './rmPoolConnection';
-import { PoolConfig, InitialConnections, IncrementConnections, Logger } from './types';
-
-// Import logger - you'll need to create a logger.ts or adjust the path
-declare const logger: Logger;
+import { PoolConfig, InitialConnections, IncrementConnections, JDBCOptions } from './types';
+import { DaemonServer } from '@ibm/mapepire-js';
+import logger from './logger';
 
 class rmPool {
   connections: rmPoolConnection[];
@@ -14,7 +12,7 @@ class rmPool {
   initialConnections: InitialConnections;
   incrementConnections: IncrementConnections;
   dbConnectorDebug: boolean;
-  jdbcOptions: JDBCOptions;
+  JDBCOptions: JDBCOptions;
   envvars: any[];
   debug: boolean;
 
@@ -42,7 +40,7 @@ class rmPool {
     this.incrementConnections.size = this.incrementConnections.size || 8;
     this.incrementConnections.expiry = this.incrementConnections.expiry || null;
     this.dbConnectorDebug = opts.dbConnectorDebug || false;
-    this.jdbcOptions = opts.jdbcOptions || {};
+    this.JDBCOptions = opts.JDBCOptions || {};
     this.envvars = opts.envvars || [];
     this.debug = debug || false;
   }

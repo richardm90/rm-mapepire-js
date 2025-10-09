@@ -10,7 +10,7 @@ class rmPoolConnection {
   poolIndex: number | null;
   creds: DaemonServer;
   debug: boolean;
-  jdbcOptions: JDBCOptions;
+  JDBCOptions: JDBCOptions;
   envvars: EnvVar[];
   available: boolean;
   expiryTimerId: NodeJS.Timeout | null;
@@ -26,9 +26,9 @@ class rmPoolConnection {
   constructor(pool: PoolConfig) {
     this.poolId = pool.id;
     this.poolIndex = null;
-    this.creds = pool.PoolOptions.creds || {};
+    this.creds = pool.PoolOptions.creds;
     this.debug = pool.PoolOptions?.dbConnectorDebug || false;
-    this.jdbcOptions = pool.PoolOptions?.jdbcOptions || {};
+    this.JDBCOptions = pool.PoolOptions?.JDBCOptions || {};
     this.envvars = pool.PoolOptions?.envvars || [];
     this.available = false;
     this.expiryTimerId = null;
@@ -40,7 +40,7 @@ class rmPoolConnection {
   async init(poolIndex: number): Promise<void> {
     this.poolIndex = poolIndex;
 
-    this.connection = new SQLJob(this.jdbcOptions);
+    this.connection = new SQLJob(this.JDBCOptions);
 
     if (this.connection.getStatus() === "notStarted") {
       await this.connection.connect(this.creds);
