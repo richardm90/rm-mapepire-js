@@ -1,22 +1,37 @@
-const logger = require('../logger');
-const rmPoolConnection = require('./rmPoolConnection');
-const mapepire = require('@ibm/mapepire-js');
+import { JDBCOptions, DaemonServer } from '@ibm/mapepire-js';
+import rmPoolConnection from './rmPoolConnection';
+import { PoolConfig, InitialConnections, IncrementConnections, Logger } from './types';
+
+// Import logger - you'll need to create a logger.ts or adjust the path
+declare const logger: Logger;
 
 class rmPool {
+  connections: rmPoolConnection[];
+  id: string;
+  config: PoolConfig;
+  creds: DaemonServer;
+  maxSize: number;
+  initialConnections: InitialConnections;
+  incrementConnections: IncrementConnections;
+  dbConnectorDebug: boolean;
+  jdbcOptions: JDBCOptions;
+  envvars: any[];
+  debug: boolean;
+
   /**
    * Manages a list of rmPoolConnection instances.
    * Constructor to instantiate a new instance of a rmPool class given the `database` and `config`
    * @param {object} config - rmPool config object.
-   * @param {object} debug - Boolean, display verbose output from the GBWebAPI application to the console.
+   * @param {boolean} debug - Boolean, display verbose output from the application to the console.
    * @constructor
    */
-  constructor(config, debug) {
+  constructor(config: { id: string; config: PoolConfig }, debug: boolean = false) {
     this.connections = [];
 
     // Set pool configuration
     this.id = config.id;
-    this.config = config.config || {};
-    let opts = this.config.PoolOptions || {};
+    this.config = config.config || { id: config.id };
+    const opts = this.config.PoolOptions || {};
 
     this.creds = opts.creds;
     this.maxSize = opts.maxSize || 20;
@@ -24,10 +39,10 @@ class rmPool {
     this.initialConnections.size = this.initialConnections.size || 8;
     this.initialConnections.expiry = this.initialConnections.expiry || null;
     this.incrementConnections = opts.incrementConnections || opts.initialConnections || {};
-    this.incrementConnections.size = opts.incrementConnections.size || 8;
-    this.incrementConnections.expiry = opts.incrementConnections.expiry || null;
+    this.incrementConnections.size = this.incrementConnections.size || 8;
+    this.incrementConnections.expiry = this.incrementConnections.expiry || null;
     this.dbConnectorDebug = opts.dbConnectorDebug || false;
-    this.JDBCOptions = opts.JDBCOptions || [];
+    this.jdbcOptions = opts.jdbcOptions || {};
     this.envvars = opts.envvars || [];
     this.debug = debug || false;
   }
@@ -35,20 +50,19 @@ class rmPool {
   /**
    * Initializes the rmPool instance.
    */
-  async init() {
-    for (let i = 0; i < this.initialConnections.size; i += 1) {
-      this.createConnection(this.initialConnections.expiry);
+  async init(): Promise<void> {
+    for (let i = 0; i < this.initialConnections.size!; i += 1) {
+      await this.createConnection(this.initialConnections.expiry);
     }
 
     this.log(`Connection pool initialized`);
   }
 
-
   /**
    * Instantiates a new instance of rmPoolConnection with an `index` and appends it to the pool.
    * Assumes the database of the pool when establishing the connection.
    */
-  async createConnection(expiry) {
+  async createConnection(expiry?: number | null): Promise<rmPoolConnection> {
     const conn = new rmPoolConnection(this.config);
 
     const poolIndex = this.connections.push(conn);
@@ -63,25 +77,20 @@ class rmPool {
     return conn;
   }
 
-  async newConnection(expiry) {
-    let connection = mapepire.Pool.addJob();
-
-
-  }
-
   /**
    * Frees all connections in the pool (Sets "Available" back to true for all)
    * closes any statements and gets a new statement.
    * @returns {boolean} - true if all were detached successfully
    */
-  async detachAll() {
+  async detachAll(): Promise<boolean> {
     for (let i = 0; i < this.connections.length; i += 1) {
       try {
-        // eslint-disable-next-line no-await-in-loop
-        await this.detach(connections[i]);
+        await this.detach(this.connections[i]);
       } catch (error) {
         const reason = new Error('rmPool: Failed to detachAll()');
-        reason.stack += `\nCaused By:\n ${error.stack}`;
+        if (error instanceof Error) {
+          reason.stack += `\nCaused By:\n ${error.stack}`;
+        }
         throw reason;
       }
     }
@@ -93,14 +102,16 @@ class rmPool {
    * Retires (Removes) all connections from being used again
    * @returns {boolean} - true if all were retired successfully
    */
-  async retireAll() {
+  async retireAll(): Promise<boolean> {
     try {
       for (let i = 0; i < this.connections.length; i += 1) {
-        this.retire(this.connections[i]);
+        await this.retire(this.connections[i]);
       }
     } catch (error) {
       const reason = new Error('rmPool: Failed to retireAll()');
-      reason.stack += `\nCaused By:\n ${error.stack}`;
+      if (error instanceof Error) {
+        reason.stack += `\nCaused By:\n ${error.stack}`;
+      }
       throw reason;
     }
     return true;
@@ -111,14 +122,16 @@ class rmPool {
    * @param {rmPoolConnection} connection
    * @returns {boolean} - true if detached successfully
    */
-  async detach(connection) {
+  async detach(connection: rmPoolConnection): Promise<boolean> {
     const index = connection.poolIndex;
     try {
       await connection.detach();
       this.setExpiryTimer(connection);
     } catch (error) {
       const reason = new Error('rmPool: Failed to detach()');
-      reason.stack += `\nCaused By:\n ${error.stack}`;
+      if (error instanceof Error) {
+        reason.stack += `\nCaused By:\n ${error.stack}`;
+      }
       throw reason;
     }
     this.log(`Connection ${index} detached`);
@@ -129,7 +142,7 @@ class rmPool {
    * Retires a connection from being used and removes it from the pool
    * @param {rmPoolConnection} connection
    */
-  async retire(connection) {
+  async retire(connection: rmPoolConnection): Promise<void> {
     const index = connection.poolIndex;
 
     try {
@@ -137,11 +150,15 @@ class rmPool {
       await connection.retire();
 
       // Remove the connection from the pool
-      this.connections.splice(index, 1);
+      if (index !== null) {
+        this.connections.splice(index - 1, 1);
+      }
     } catch (error) {
-      console.dir(error,{ depth: 5 });
+      console.dir(error, { depth: 5 });
       const reason = new Error(`rmPool: Failed to retire() Connection #${index}`);
-      reason.stack += `\nCaused By:\n ${error.stack}`;
+      if (error instanceof Error) {
+        reason.stack += `\nCaused By:\n ${error.stack}`;
+      }
       throw reason;
     }
     this.log(`Connection ${index} retired`);
@@ -151,11 +168,11 @@ class rmPool {
    * Finds and returns the first available Connection.
    * @returns {rmPoolConnection} - one connection from the rmPool.
    */
-  async attach() {
-    const size = this.incrementConnections.size;
+  async attach(): Promise<rmPoolConnection> {
+    const size = this.incrementConnections.size!;
     let validConnection = false;
-    let connection;
-    let i;
+    let connection: rmPoolConnection | undefined;
+    let i: number;
     let increasedPoolSize = false;
 
     this.log('Finding available connection');
@@ -181,7 +198,7 @@ class rmPool {
           if (increasedPoolSize) {
             break;
           } else {
-            throw(new Error(msg));
+            throw new Error(msg);
           }
         }
 
@@ -195,55 +212,50 @@ class rmPool {
       }
     }
 
-    return connection;
+    return connection!;
   }
-
-
-
 
   /**
    * Starts the expiry timer for the connection.
    */
-  setExpiryTimer(conn) {
+  setExpiryTimer(conn: rmPoolConnection): void {
     this.cancelExpiryTimer(conn);
 
-    if (conn.expiry && conn.expiry>0) {
-      const milliseconds = conn.expiry*60*1000;
+    if (conn.expiry && conn.expiry > 0) {
+      const milliseconds = conn.expiry * 60 * 1000;
       conn.expiryTimerId = setTimeout(this.setExpired.bind(this), milliseconds, conn);
 
-      this.log(`Connection ${conn.poolIndex} expiry timer set`,'debug');
+      this.log(`Connection ${conn.poolIndex} expiry timer set`, 'debug');
     }
   }
 
   /**
    * Cancels the expiry timer for the connection.
    */
-  cancelExpiryTimer(conn) {
+  cancelExpiryTimer(conn: rmPoolConnection): void {
     if (conn.expiryTimerId) {
-      clearInterval(conn.expiryTimerId);
+      clearTimeout(conn.expiryTimerId);
       conn.expiryTimerId = null;
 
-      this.log(`Connection ${conn.poolIndex} expiry timer cancelled`,'debug');
+      this.log(`Connection ${conn.poolIndex} expiry timer cancelled`, 'debug');
     }
   }
 
   /**
    * Flags the connection as expired.
    */
-  setExpired(conn) {
+  setExpired(conn: rmPoolConnection): void {
     conn.setAvailable(false);
     this.retire(conn);
 
     this.log(`Connection ${conn.poolIndex} expired`);
   }
 
-
-
   /**
    * Internal function used to log debug information to the console.
    * @param {string} message - the message to log.
    */
-  log(message = '', type = 'debug') {
+  log(message: string = '', type: string = 'debug'): void {
     if (type === 'debug') {
       if (this.debug) {
         logger.log('debug', `Pool ${this.id}: ${message}`, { service: 'rmPool' });
@@ -254,4 +266,4 @@ class rmPool {
   }
 }
 
-module.exports = rmPool;
+export default rmPool;

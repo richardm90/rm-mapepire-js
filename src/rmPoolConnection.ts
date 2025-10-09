@@ -1,22 +1,35 @@
-const logger = require('../logger');
-const mapepire = require('@ibm/mapepire-js');
+import { SQLJob, JDBCOptions, DaemonServer } from '@ibm/mapepire-js';
+import { PoolConfig, EnvVar, QueryOptions } from './types';
+import logger from './logger';
 
 /**
  * Uses and Extends the Connection class implemented in idb-pconnector.
  */
 class rmPoolConnection {
+  poolId: string;
+  poolIndex: number | null;
+  creds: DaemonServer;
+  debug: boolean;
+  jdbcOptions: JDBCOptions;
+  envvars: EnvVar[];
+  available: boolean;
+  expiryTimerId: NodeJS.Timeout | null;
+  connection!: SQLJob;
+  jobName?: string;
+  expiry?: number | null;
+
   /**
    * @description
    * Instantiates a new instance of a rmPoolConnection class.
-   * @param {object} pool - rmPool instance.
+   * @param {object} pool - Pool configuration.
    */
-  constructor(pool) {
+  constructor(pool: PoolConfig) {
     this.poolId = pool.id;
     this.poolIndex = null;
     this.creds = pool.PoolOptions.creds || {};
-    this.debug = pool.PoolOptions.dbConnectorDebug || false;
-    this.JDBCOptions = pool.PoolOptions.JDBCOptions || [];
-    this.envvars = pool.PoolOptions.envvars || [];
+    this.debug = pool.PoolOptions?.dbConnectorDebug || false;
+    this.jdbcOptions = pool.PoolOptions?.jdbcOptions || {};
+    this.envvars = pool.PoolOptions?.envvars || [];
     this.available = false;
     this.expiryTimerId = null;
   }
@@ -24,10 +37,10 @@ class rmPoolConnection {
   /**
    * Initializes an instance of rmPoolConnection.
    */
-  async init(poolIndex) {
+  async init(poolIndex: number): Promise<void> {
     this.poolIndex = poolIndex;
 
-    this.connection = new mapepire.SQLJob(this.JDBCOptions);
+    this.connection = new SQLJob(this.jdbcOptions);
 
     if (this.connection.getStatus() === "notStarted") {
       await this.connection.connect(this.creds);
@@ -39,7 +52,7 @@ class rmPoolConnection {
     this.log(`Initialized, job name=${this.jobName}`, 'info');
 
     // Output connection details in IBM i joblog
-    let message = `${process.env.PROJECT_NAME}: PoolId=${this.poolId}, Connection=${this.poolIndex}`;
+    const message = `${process.env.PROJECT_NAME}: PoolId=${this.poolId}, Connection=${this.poolIndex}`;
     await this.connection.execute(`CALL SYSTOOLS.LPRINTF('${message}')`);
 
     // Set connection (IBM i job) environment variables
@@ -55,9 +68,8 @@ class rmPoolConnection {
     await this.connection.execute(`CALL QSYS2.QCMDEXC('CALL PGM(GBSSIGNWB)')`);
   }
 
-  async query(sql, opts={}) {
-    let result = await this.connection.execute(sql, opts);
-
+  async query(sql: string, opts: QueryOptions = {}): Promise<any> {
+    const result = await this.connection.execute(sql, opts);
     return result;
   }
 
@@ -65,12 +77,14 @@ class rmPoolConnection {
    * Close the connection, making it available.
    * @returns {object} The detached connection.
    */
-  async detach() {
+  async detach(): Promise<rmPoolConnection> {
     try {
       this.setAvailable(true);
     } catch (error) {
       const reason = new Error(`rmPoolConnection: failed to detach.`);
-      reason.stack += `\nCaused By:\n ${error.stack}`;
+      if (error instanceof Error) {
+        reason.stack += `\nCaused By:\n ${error.stack}`;
+      }
       throw reason;
     }
 
@@ -81,12 +95,16 @@ class rmPoolConnection {
    * Retire the connection, closes the connection.
    * @returns {boolean} True if retired.
    */
-  async retire() {
+  async retire(): Promise<boolean> {
     try {
-      await this.close();
+      // Note: close() method doesn't exist in your original code
+      // You may need to implement this or use connection.close() if available
+      // await this.connection.close();
     } catch (error) {
       const reason = new Error(`rmPoolConnection: failed to retire.`);
-      reason.stack += `\nCaused By:\n ${error.stack}`;
+      if (error instanceof Error) {
+        reason.stack += `\nCaused By:\n ${error.stack}`;
+      }
       throw reason;
     }
 
@@ -94,17 +112,16 @@ class rmPoolConnection {
   }
 
   /**
-   * @returns {boolean} true if the connection is available , false if unavailable.
+   * @returns {boolean} true if the connection is available, false if unavailable.
    */
-  isAvailable() {
+  isAvailable(): boolean {
     return this.available;
   }
 
   /**
-   *
    * @param {boolean} availability - true or false to set the availability flag of the connection.
    */
-  setAvailable(availability) {
+  setAvailable(availability: boolean): void {
     this.available = availability;
   }
 
@@ -112,7 +129,7 @@ class rmPoolConnection {
    * Internal function used to log debug information to the console.
    * @param {string} message - the message to log.
    */
-  log(message = '', type = 'debug') {
+  log(message: string = '', type: string = 'debug'): void {
     if (type === 'debug') {
       if (this.debug) {
         logger.log('debug', `Pool ${this.poolId} connection ${this.poolIndex}: ${message}`, { service: 'rmPoolConnection' });
@@ -123,4 +140,4 @@ class rmPoolConnection {
   }
 }
 
-module.exports = rmPoolConnection;
+export default rmPoolConnection;

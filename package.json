@@ -1,0 +1,38 @@
+{
+  "name": "rm-mapepire-js",
+  "description": "Wrapper over DB2 client for Node.js",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "prepublishOnly": "npm run build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "DB2",
+    "DB2 for i",
+    "DB2 for IBM i",
+    "DB2 client",
+    "RPG",
+    "SQL",
+    "CL",
+    "COBOL",
+    "IBMi",
+    "IBM",
+    "IBM i"
+  ],
+  "author": "Richard Moulton",
+  "license": "ISC",
+  "dependencies": {
+    "@ibm/mapepire-js": "^0.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}
