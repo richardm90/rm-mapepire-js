@@ -62,11 +62,11 @@ class rmPoolConnection {
 
     this.log(`GOT HERE #3`, 'info');
 
-    this.log(`Running command: ${command}`);
+    this.log(`Running command: ${command}`, 'info');
 
     await this.connection.execute(command);
 
-    this.log(`Just finished running command: ${command}`);
+    this.log(`Just finished running command: ${command}`, 'info');
 
     // Set connection (IBM i job) environment variables
     for (let i = 0; i < this.envvars.length; i += 1) {
