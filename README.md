@@ -7,7 +7,12 @@ connection pooling and management for IBM i databases.
 
 ```bash
 # TODO: Make available publicly
-npm install git+ssh://git@bitbucket.org/richardm90/rm-mapepire-js.git
+
+# Development branch
+npm install git+ssh://git@bitbucket.org/richardm90/rm-mapepire-js.git#dev
+
+# Stable/production branch
+npm install git+ssh://git@bitbucket.org/richardm90/rm-mapepire-js.git#main
 ```
 
 ## Usage
