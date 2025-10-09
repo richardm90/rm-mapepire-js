@@ -6,7 +6,8 @@ connection pooling and management for IBM i databases.
 ## Installation
 
 ```bash
-npm install rm-mapepire-js
+# TODO: Make available publicly
+npm install git+ssh://git@bitbucket.org/richardm90/rm-mapepire-js.git
 ```
 
 ## Usage
@@ -119,3 +120,21 @@ ISC
 ## Author
 
 Richard Moulton
+
+## Updating to the latest version:
+
+```bash
+npm update rm-mapepire-js
+```
+
+## Workflow for Updates
+
+When you make changes to your package:
+
+1. Make your code changes
+1. Update version in package.json
+1. Run tests: `npm test`
+1. Build: `npm run build`
+1. Commit and push
+1. Tag the release: `git tag v1.0.1 && git push origin v1.0.1`
+1. Update in consuming projects: `npm update rm-mapepire-js`
