@@ -155,10 +155,8 @@ class rmPools {
    * @param {string} message - the message to log.
    */
   log(message: string = '', type: string = 'debug'): void {
-    if (type === 'debug') {
-      if (this.debug) logger.log('debug', `Pools: ${message}`, { service: 'rmPools' });
-    } else {
-      logger.log(type, `Pools: ${message}`, { service: 'rmPools' });
+    if (type !== 'debug' || this.debug) {
+      logger.log(type, `${message}`, { service: 'rmPools' });
     }
   }
 }

@@ -66,7 +66,7 @@ class rmPool {
    * Assumes the database of the pool when establishing the connection.
    */
   async createConnection(expiry?: number | null): Promise<rmPoolConnection> {
-    const conn = new rmPoolConnection(this.config);
+    const conn = new rmPoolConnection(this.config, this.debug);
 
     const poolIndex = this.connections.push(conn);
 
@@ -262,12 +262,8 @@ class rmPool {
    * @param {string} message - the message to log.
    */
   log(message: string = '', type: string = 'debug'): void {
-    if (type === 'debug') {
-      if (this.debug) {
-        logger.log('debug', `Pool ${this.id}: ${message}`, { service: 'rmPool' });
-      }
-    } else {
-      logger.log(type, `Pool ${this.id}: ${message}`, { service: 'rmPool' });
+    if (type !== 'debug' || this.debug) {
+      logger.log(type, `Pool: ${this.id} - ${message}`, { service: 'rmPool' });
     }
   }
 }

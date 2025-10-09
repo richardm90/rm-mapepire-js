@@ -23,7 +23,7 @@ class rmPoolConnection {
    * Instantiates a new instance of a rmPoolConnection class.
    * @param {object} pool - Pool configuration.
    */
-  constructor(pool: PoolConfig) {
+  constructor(pool: PoolConfig, debug: boolean = false) {
     this.poolId = pool.id;
     this.poolIndex = null;
     this.creds = pool.PoolOptions.creds;
@@ -32,6 +32,7 @@ class rmPoolConnection {
     this.envvars = pool.PoolOptions?.envvars || [];
     this.available = false;
     this.expiryTimerId = null;
+    this.debug = debug || false;
   }
 
   /**
@@ -100,9 +101,7 @@ class rmPoolConnection {
    */
   async retire(): Promise<boolean> {
     try {
-      // Note: close() method doesn't exist in your original code
-      // You may need to implement this or use connection.close() if available
-      // await this.connection.close();
+      await this.connection.close();
     } catch (error) {
       const reason = new Error(`rmPoolConnection: failed to retire.`);
       if (error instanceof Error) {
@@ -133,12 +132,8 @@ class rmPoolConnection {
    * @param {string} message - the message to log.
    */
   log(message: string = '', type: string = 'debug'): void {
-    if (type === 'debug') {
-      if (this.debug) {
-        logger.log('debug', `Pool ${this.poolId} connection ${this.poolIndex}: ${message}`, { service: 'rmPoolConnection' });
-      }
-    } else {
-      logger.log(type, `Pool ${this.poolId} connection ${this.poolIndex}: ${message}`, { service: 'rmPoolConnection' });
+    if (type !== 'debug' || this.debug) {
+      logger.log(type, `Pool: ${this.poolId} Connection: ${this.poolIndex} - ${message}`, { service: 'rmPoolConnection' });
     }
   }
 }
