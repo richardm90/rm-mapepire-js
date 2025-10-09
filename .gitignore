@@ -1,3 +1,33 @@
 dist
 node_modules
+.env# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Test coverage
+coverage/
+*.lcov
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment variables
 .env
+.env.local
+
+# TypeScript cache
+*.tsbuildinfo

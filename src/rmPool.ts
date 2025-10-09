@@ -23,7 +23,7 @@ class rmPool {
    * @param {boolean} debug - Boolean, display verbose output from the application to the console.
    * @constructor
    */
-  constructor(config: { id: string; config: PoolConfig }, debug: boolean = false) {
+  constructor(config: { id: string; config?: PoolConfig }, debug: boolean = false) {
     this.connections = [];
 
     // Set pool configuration
@@ -147,9 +147,10 @@ class rmPool {
       this.cancelExpiryTimer(connection);
       await connection.retire();
 
-      // Remove the connection from the pool
-      if (index !== null) {
-        this.connections.splice(index - 1, 1);
+      // Find and remove the connection from the pool
+      const connectionIndex = this.connections.indexOf(connection);
+      if (connectionIndex !== -1) {
+        this.connections.splice(connectionIndex, 1);
       }
     } catch (error) {
       console.dir(error, { depth: 5 });
