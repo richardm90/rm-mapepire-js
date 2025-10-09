@@ -143,3 +143,31 @@ When you make changes to your package:
 1. Commit and push
 1. Tag the release: `git tag v1.0.1 && git push origin v1.0.1`
 1. Update in consuming projects: `npm update rm-mapepire-js`
+
+## Use `npm link` for Active Development
+
+If you're making frequent changes, npm link is faster:
+
+```bash
+# In your rm-mapepire-js directory
+npm link
+
+# In your consuming project
+npm link rm-mapepire-js
+```
+
+Now any changes you make and build in `rm-mapepire-js` are immediately
+available.
+
+When done:
+
+```bash
+# 1. In your consuming project - removes the symlink
+npm unlink rm-mapepire-js
+
+# 2. In your rm-mapepire-js directory - removes the global link
+npm unlink
+
+# 3. In your consuming project - reinstall normally
+npm install git+ssh://git@bitbucket.org/your-username/rm-mapepire-js.git#dev
+```
