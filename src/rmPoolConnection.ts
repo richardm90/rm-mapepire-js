@@ -54,26 +54,21 @@ class rmPoolConnection {
     // Output connection details in IBM i joblog
     // TODO: process.env.PROJECT_NAME not defined
     const message = `${process.env.PROJECT_NAME}: PoolId=${this.poolId}, Connection=${this.poolIndex}`;
-    const command = `CALL SYSTOOLS.LPRINTF('${message}')`;
-    this.log(`Running command: ${command}`, 'info');
-
-    const result = await this.connection.execute(command);
-
-    console.dir(result, { depth: 5 });
-
-    this.log(`Just finished running command: ${command}`, 'info');
+    await this.connection.execute(`CALL SYSTOOLS.LPRINTF('${message}')`);
 
     // Set connection (IBM i job) environment variables
     for (let i = 0; i < this.envvars.length; i += 1) {
       const { envvar = null, value = null } = this.envvars[i];
       if (envvar !== null && value !== null) {
         await this.connection.execute(`CALL QSYS2.QCMDEXC('ADDENVVAR ENVVAR(${envvar}) VALUE(''${value}'')')`);
+        this.log(`Set environment variable: ${envvar}=${value}`, 'debug');
       }
     }
 
     // Initialize IBM i job environment
     // - Uses GB System signon program
-    await this.connection.execute(`CALL QSYS2.QCMDEXC('CALL PGM(GBSSIGNWB)')`);
+    // TODO: sort out initial program and library list
+    // TODO: await this.connection.execute(`CALL QSYS2.QCMDEXC('CALL PGM(GBSSIGNWB)')`);
   }
 
   async query(sql: string, opts: QueryOptions = {}): Promise<any> {
