@@ -171,3 +171,9 @@ npm unlink
 # 3. In your consuming project - reinstall normally
 npm install git+ssh://git@bitbucket.org/your-username/rm-mapepire-js.git#dev
 ```
+
+```bash
+# Check if something is linked, in the consuming project
+cd test-rm-mapepire-js
+ls -l node_modules/ | grep "^l"
+```

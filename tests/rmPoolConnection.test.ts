@@ -1,5 +1,6 @@
 import rmPoolConnection from '../src/rmPoolConnection';
 import { PoolConfig } from '../src/types';
+import { States } from '@ibm/mapepire-js';
 
 // Mock the module before tests run
 jest.mock('@ibm/mapepire-js');
@@ -123,6 +124,7 @@ describe('rmPoolConnection', () => {
       const result = await connection.retire();
 
       expect(result).toBe(true);
+      expect(connection.getStatus()).toBe(States.JobStatus.ENDED);
     });
   });
 });

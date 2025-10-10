@@ -1,4 +1,4 @@
-import { SQLJob, JDBCOptions, DaemonServer } from '@ibm/mapepire-js';
+import { SQLJob, JDBCOptions, DaemonServer, States } from '@ibm/mapepire-js';
 import { PoolConfig, EnvVar, QueryOptions } from './types';
 import logger from './logger';
 
@@ -43,7 +43,7 @@ class rmPoolConnection {
 
     this.connection = new SQLJob(this.JDBCOptions);
 
-    if (this.connection.getStatus() === "notStarted") {
+    if (this.connection.getStatus() === States.JobStatus.NOT_STARTED) {
       await this.connection.connect(this.creds);
     }
 
@@ -125,6 +125,15 @@ class rmPoolConnection {
    */
   setAvailable(availability: boolean): void {
     this.available = availability;
+  }
+
+  /**
+   * Retrieves the current status of the job.
+   *
+   * @returns The current status of the job.
+   */
+  getStatus(): States.JobStatus {
+    return this.connection.getStatus();
   }
 
   /**
