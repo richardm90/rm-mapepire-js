@@ -21,6 +21,11 @@ export class SQLJob {
     });
   }
 
+  async close(): Promise<void> {
+    this.status = 'closed';
+    return Promise.resolve();
+  }
+
   getStatus(): string {
     return this.status;
   }
