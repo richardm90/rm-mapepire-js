@@ -32,7 +32,8 @@ const poolsConfig = {
         creds: {
           host: 'your-host',
           user: 'your-user',
-          password: 'your-password'
+          password: 'your-password',
+          rejectUnauthorized: false,
         },
         maxSize: 20,
         initialConnections: {
