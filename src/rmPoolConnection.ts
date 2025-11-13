@@ -137,6 +137,28 @@ class rmPoolConnection {
   }
 
   /**
+   * Get connection information for debugging
+   */
+  getInfo(): object {
+    return {
+      poolId: this.poolId,
+      poolIndex: this.poolIndex,
+      jobName: this.jobName,
+      available: this.available,
+      status: this.connection?.getStatus(),
+      hasExpiryTimer: this.expiryTimerId !== null,
+      expiry: this.expiry,
+    };
+  }
+
+  /**
+   * Print connection info to console
+   */
+  printInfo(): void {
+    console.log('Connection Info:', JSON.stringify(this.getInfo(), null, 2));
+  }
+
+  /**
    * Internal function used to log debug information to the console.
    * @param {string} message - the message to log.
    */

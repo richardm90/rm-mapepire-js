@@ -141,6 +141,57 @@ class rmPools {
   }
 
   /**
+   * Get all pools information for debugging
+   */
+  getInfo(): object {
+    return {
+      totalPools: this.pools.length,
+      activePools: this.pools.filter(p => p.active).length,
+      pools: this.pools.map(p => ({
+        id: p.id,
+        active: p.active,
+        ...(p.rmPool ? (p.rmPool.getStats() as object) : {}),
+      })),
+    };
+  }
+
+  /**
+   * Print all pools info to console
+   */
+  printInfo(): void {
+    console.log('\n╔════════════════════════════════════════╗');
+    console.log('║         POOLS OVERVIEW                 ║');
+    console.log('╚════════════════════════════════════════╝\n');
+
+    const info = this.getInfo() as any;
+    console.log(`Total Pools: ${info.totalPools}`);
+    console.log(`Active Pools: ${info.activePools}\n`);
+
+    this.pools.forEach((pool, idx) => {
+      console.log(`\n[${idx}] Pool: ${pool.id} (${pool.active ? 'ACTIVE' : 'INACTIVE'})`);
+      if (pool.active && pool.rmPool) {
+        pool.rmPool.printInfo();
+      }
+    });
+  }
+
+  /**
+   * Print summary statistics for all pools
+   */
+  printStats(): void {
+    console.log('\n┌─────────────────────────────────────────┐');
+    console.log('│         POOLS STATISTICS                │');
+    console.log('└─────────────────────────────────────────┘');
+
+    this.pools.forEach(pool => {
+      if (pool.active && pool.rmPool) {
+        pool.rmPool.printStats();
+      }
+    });
+    console.log('');
+  }
+
+  /**
    * Internal function to activate a pool
    */
   async activatePool(pool: RegisteredPool): Promise<void> {

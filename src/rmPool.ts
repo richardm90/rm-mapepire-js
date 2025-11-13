@@ -258,6 +258,65 @@ class rmPool {
   }
 
   /**
+   * Get pool information for debugging
+   */
+  getInfo(): object {
+    return {
+      id: this.id,
+      totalConnections: this.connections.length,
+      availableConnections: this.connections.filter(c => c.isAvailable()).length,
+      busyConnections: this.connections.filter(c => !c.isAvailable()).length,
+      maxSize: this.maxSize,
+      connections: this.connections.map(c => c.getInfo()),
+    };
+  }
+
+  /**
+   * Get summary statistics
+   */
+  getStats(): object {
+    const available = this.connections.filter(c => c.isAvailable()).length;
+    const busy = this.connections.filter(c => !c.isAvailable()).length;
+    return {
+      id: this.id,
+      total: this.connections.length,
+      available,
+      busy,
+      maxSize: this.maxSize,
+      utilizationPercent: busy > 0 ? ((this.connections.length / busy) * 100).toFixed(1) : '0.0',
+    };
+  }
+
+  /**
+   * Print pool info to console
+   */
+  printInfo(): void {
+    const info = this.getInfo() as any;
+    console.log('\n=== Pool Info ===');
+    console.log(`Pool ID: ${info.id}`);
+    console.log(`Total Connections: ${info.totalConnections}/${this.maxSize}`);
+    console.log(`Available: ${info.availableConnections}`);
+    console.log(`Busy: ${info.busyConnections}`);
+    console.log('\nConnections:');
+    this.connections.forEach((conn, idx) => {
+      const connInfo = conn.getInfo() as any;
+      console.log(`  [${idx}] Job: ${connInfo.jobName} | Available: ${connInfo.available} | Status: ${connInfo.status}`);
+    });
+    console.log('=================\n');
+  }
+
+  /**
+   * Print summary statistics
+   */
+  printStats(): void {
+    const stats = this.getStats() as any;
+    console.log(`\n${stats.id}:`);
+    console.log(`  Connections: ${stats.busy}/${stats.total} busy (${stats.utilizationPercent}% utilized)`);
+    console.log(`  Available: ${stats.available}`);
+    console.log(`  Max Size: ${stats.maxSize}`);
+  }
+
+  /**
    * Internal function used to log debug information to the console.
    * @param {string} message - the message to log.
    */
