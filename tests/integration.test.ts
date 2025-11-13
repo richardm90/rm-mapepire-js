@@ -160,5 +160,106 @@ describe('Integration Tests', () => {
 
       expect(pool!.connections.length).toBe(0);
     });
+
+    it('should execute queries directly on the pool', async () => {
+      const pools = new rmPools({
+        activate: true,
+        pools: [
+          {
+            id: 'query-test',
+            PoolOptions: {
+              creds: {
+                host: 'test-host',
+                user: 'test-user',
+                password: 'test-password',
+              },
+              initialConnections: {
+                size: 2,
+              },
+            },
+          },
+        ],
+      });
+
+      await pools.init();
+      const pool = await pools.get('query-test');
+
+      // Verify all connections are available before query
+      expect(pool!.connections.every(c => c.isAvailable())).toBe(true);
+
+      // Execute query directly on pool
+      const result = await pool!.query('SELECT * FROM TEST_TABLE');
+      expect(result).toBeDefined();
+
+      // Verify all connections are available after query (detached automatically)
+      expect(pool!.connections.every(c => c.isAvailable())).toBe(true);
+    });
+
+    it('should handle pool query with options', async () => {
+      const pools = new rmPools({
+        activate: true,
+        pools: [
+          {
+            id: 'query-opts-test',
+            PoolOptions: {
+              creds: {
+                host: 'test-host',
+                user: 'test-user',
+                password: 'test-password',
+              },
+              initialConnections: {
+                size: 1,
+              },
+            },
+          },
+        ],
+      });
+
+      await pools.init();
+      const pool = await pools.get('query-opts-test');
+
+      // Execute query with options
+      const result = await pool!.query('SELECT * FROM TEST_TABLE WHERE id = ?', {
+        parameters: [1],
+      });
+      expect(result).toBeDefined();
+
+      // Verify connection is detached
+      expect(pool!.connections.every(c => c.isAvailable())).toBe(true);
+    });
+
+    it('should detach connection even if query fails', async () => {
+      const pools = new rmPools({
+        activate: true,
+        pools: [
+          {
+            id: 'query-error-test',
+            PoolOptions: {
+              creds: {
+                host: 'test-host',
+                user: 'test-user',
+                password: 'test-password',
+              },
+              initialConnections: {
+                size: 1,
+              },
+            },
+          },
+        ],
+      });
+
+      await pools.init();
+      const pool = await pools.get('query-error-test');
+
+      // Execute invalid query
+      try {
+        await pool!.query('INVALID SQL STATEMENT');
+      } catch (error) {
+        // Error is expected
+      }
+
+      // Verify connection is still detached despite error
+      expect(pool!.connections.every(c => c.isAvailable())).toBe(true);
+    });
   });
 });

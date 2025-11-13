@@ -50,6 +50,27 @@ await pools.init();
 
 ### Using a Connection
 
+#### Direct Pool Query (Recommended)
+
+The simplest way to execute queries - the pool automatically handles connection lifecycle:
+
+```typescript
+// Get a pool
+const pool = await pools.get('myPool');
+
+// Execute a query directly on the pool (auto attach/detach)
+const result = await pool.query('SELECT * FROM MY_TABLE');
+
+// With query options
+const result = await pool.query('SELECT * FROM MY_TABLE WHERE id = ?', {
+  parameters: [123]
+});
+```
+
+#### Manual Connection Management
+
+For more control, you can manually attach and detach connections:
+
 ```typescript
 // Get a pool
 const pool = await pools.get('myPool');
@@ -101,11 +122,16 @@ Manages a pool of database connections.
 #### Methods
 
 - `init()`: Initialize the pool with initial connections
+- `query(sql, opts?)`: Execute a SQL query using a connection from the pool (automatically handles attach/detach)
 - `attach()`: Get an available connection from the pool
 - `detach(connection)`: Return a connection to the pool
 - `retire(connection)`: Remove a connection from the pool permanently
 - `detachAll()`: Return all connections to the pool
 - `retireAll()`: Remove all connections from the pool
+- `getInfo()`: Get detailed pool information for debugging
+- `getStats()`: Get pool statistics summary
+- `printInfo()`: Print detailed pool information to console
+- `printStats()`: Print pool statistics to console
 
 ### rmPoolConnection
 
@@ -129,6 +155,7 @@ Richard Moulton
 ## Updating to the latest version:
 
 ```bash
+# In your rm-mapepire-js directory
 npm update rm-mapepire-js
 ```
 

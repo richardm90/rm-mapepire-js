@@ -1,5 +1,5 @@
 import rmPoolConnection from './rmPoolConnection';
-import { PoolConfig, InitialConnections, IncrementConnections, JDBCOptions } from './types';
+import { PoolConfig, InitialConnections, IncrementConnections, JDBCOptions, QueryOptions } from './types';
 import { DaemonServer } from '@ibm/mapepire-js';
 import logger from './logger';
 
@@ -219,6 +219,24 @@ class rmPool {
     }
 
     return connection!;
+  }
+
+  /**
+   * Executes a query using a connection from the pool.
+   * Automatically handles attach/query/detach lifecycle.
+   * @param {string} sql - SQL statement to execute
+   * @param {QueryOptions} opts - Query options to pass to the underlying execute method
+   * @returns {Promise<any>} - Query result from the database
+   */
+  async query(sql: string, opts: QueryOptions = {}): Promise<any> {
+    const connection = await this.attach();
+    try {
+      this.log(`Executing query on connection ${connection.poolIndex}`);
+      const result = await connection.query(sql, opts);
+      return result;
+    } finally {
+      await this.detach(connection);
+    }
   }
 
   /**
