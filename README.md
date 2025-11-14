@@ -39,6 +39,9 @@ const poolsConfig = {
         initialConnections: {
           size: 8,
           expiry: 30 // minutes
+        },
+        JDBCOptions: {
+          libraries: "RMDATA"
         }
       }
     }

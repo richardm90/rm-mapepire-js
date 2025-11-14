@@ -231,7 +231,6 @@ class rmPool {
   async query(sql: string, opts: QueryOptions = {}): Promise<any> {
     const connection = await this.attach();
     try {
-      this.log(`Executing query on connection ${connection.poolIndex}`);
       const result = await connection.query(sql, opts);
       return result;
     } finally {
