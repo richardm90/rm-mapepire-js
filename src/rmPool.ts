@@ -107,13 +107,35 @@ class rmPool {
    */
   async retireAll(): Promise<boolean> {
     try {
-      // Retire connections in reverse order or use a while loop
+      // Retire connections in reverse order, use a while loop
       // to avoid issues with array indices shifting
       while (this.connections.length > 0) {
         await this.retire(this.connections[0]);
       }
     } catch (error) {
       const reason = new Error('rmPool: Failed to retireAll()');
+      if (error instanceof Error) {
+        reason.stack += `\nCaused By:\n ${error.stack}`;
+      }
+      throw reason;
+    }
+    return true;
+  }
+
+  /**
+   * Closes all connections in the pool and stop them being used again
+   * - Essentially the same as pool.retireAll()
+   * @returns {boolean} - true if the close was successfully
+   */
+  async close(): Promise<boolean> {
+    try {
+      // Retire connections in reverse order, use a while loop
+      // to avoid issues with array indices shifting
+      while (this.connections.length > 0) {
+        await this.retire(this.connections[0]);
+      }
+    } catch (error) {
+      const reason = new Error('rmPool: Failed to close()');
       if (error instanceof Error) {
         reason.stack += `\nCaused By:\n ${error.stack}`;
       }
