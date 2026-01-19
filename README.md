@@ -118,6 +118,9 @@ Main class for managing multiple connection pools.
 - `get(poolId?)`: Get a pool by ID (returns first pool if ID not provided)
 - `attach(pool)`: Attach a connection from the pool
 - `connectionDiag(poolId, connection, sql)`: Log connection diagnostics
+- `getInfo()`: Get information about all pools for debugging
+- `printInfo()`: Print all pools info to console
+- `printStats()`: Print summary statistics for all pools
 
 ### rmPool
 
@@ -132,6 +135,7 @@ Manages a pool of database connections.
 - `retire(connection)`: Remove a connection from the pool permanently
 - `detachAll()`: Return all connections to the pool
 - `retireAll()`: Remove all connections from the pool
+- `close()`: Close all connections in the pool (alias for `retireAll()`)
 - `getInfo()`: Get detailed pool information for debugging
 - `getStats()`: Get pool statistics summary
 - `printInfo()`: Print detailed pool information to console
@@ -139,14 +143,31 @@ Manages a pool of database connections.
 
 ### rmPoolConnection
 
-Represents a single database connection.
+Represents a single pooled database connection.
 
 #### Methods
 
 - `query(sql, opts?)`: Execute a SQL query
-- `detach()`: Mark the connection as available
+- `detach()`: Mark the connection as available and return it
 - `retire()`: Close and retire the connection
 - `isAvailable()`: Check if the connection is available
+- `getStatus()`: Get the current status of the underlying job
+- `getInfo()`: Get connection information for debugging
+- `printInfo()`: Print connection info to console
+
+### rmConnection
+
+Represents a standalone database connection (not pooled).
+
+#### Methods
+
+- `init()`: Initialize the connection and connect to the database
+- `execute(sql, opts?)`: Execute a SQL statement
+- `query(sql, opts?)`: Execute a SQL query (alias for `execute`)
+- `close()`: Close the connection
+- `getStatus()`: Get the current status of the underlying job
+- `getInfo()`: Get connection information for debugging
+- `printInfo()`: Print connection info to console
 
 ## License
 

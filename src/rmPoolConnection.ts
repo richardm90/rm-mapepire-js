@@ -1,3 +1,4 @@
+import rmConnection from './rmConnection';
 import { SQLJob, JDBCOptions, DaemonServer, States } from '@ibm/mapepire-js';
 import { PoolConfig, EnvVar, QueryOptions } from './types';
 import logger from './logger';
@@ -14,7 +15,7 @@ class rmPoolConnection {
   envvars: EnvVar[];
   available: boolean;
   expiryTimerId: NodeJS.Timeout | null;
-  connection!: SQLJob;
+  connection!: rmConnection;
   jobName?: string;
   expiry?: number | null;
 
@@ -41,14 +42,12 @@ class rmPoolConnection {
   async init(poolIndex: number): Promise<void> {
     this.poolIndex = poolIndex;
 
-    this.connection = new SQLJob(this.JDBCOptions);
+    this.connection = new rmConnection(this.creds, this.JDBCOptions, this.envvars, this.debug);
 
-    if (this.connection.getStatus() === States.JobStatus.NOT_STARTED) {
-      await this.connection.connect(this.creds);
-    }
+    await this.connection.init();
 
     // Grab IBM i job name
-    this.jobName = this.connection.id;
+    this.jobName = this.connection.jobName;
 
     this.log(`Initialized, job name=${this.jobName}`, 'info');
 

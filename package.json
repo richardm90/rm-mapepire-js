@@ -32,14 +32,14 @@
   "author": "Richard Moulton",
   "license": "ISC",
   "dependencies": {
-    "@ibm/mapepire-js": "^0.6.0",
-    "typescript": "^5.0.0"
+    "@ibm/mapepire-js": "^0.6.0"
   },
   "devDependencies": {
     "@jest/globals": "^30.2.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^20.0.0",
     "jest": "^30.2.0",
-    "ts-jest": "^29.4.4"
+    "ts-jest": "^29.4.4",
+    "typescript": "^5.9.3"
   }
 }
