@@ -1,5 +1,5 @@
 import { SQLJob, JDBCOptions, DaemonServer, States } from '@ibm/mapepire-js';
-import { PoolConfig, EnvVar, QueryOptions } from './types';
+import { EnvVar, QueryOptions } from './types';
 import logger from './logger';
 
 /**
