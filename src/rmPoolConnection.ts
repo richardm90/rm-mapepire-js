@@ -73,7 +73,10 @@ class rmPoolConnection {
 
   async query(sql: string, opts: QueryOptions = {}): Promise<any> {
     this.log(`Executing query on connection ${this.poolIndex}`);
+    this.log(`SQL: ${sql}`);
+    this.log(`Opts: ${opts}`);
     const result = await this.connection.execute(sql, opts);
+    this.log(`Result: ${result}`);
     return result;
   }
 
