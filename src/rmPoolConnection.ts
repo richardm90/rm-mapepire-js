@@ -54,13 +54,14 @@ class rmPoolConnection {
     // Output connection details in IBM i joblog
     // TODO: process.env.PROJECT_NAME not defined
     const message = `${process.env.PROJECT_NAME}: PoolId=${this.poolId}, Connection=${this.poolIndex}`;
-    await this.connection.execute(`CALL SYSTOOLS.LPRINTF('${message}')`);
+    await this.connection.execute(`CALL SYSTOOLS.LPRINTF(?)`, { parameters: [message] });
 
     // Set connection (IBM i job) environment variables
     for (let i = 0; i < this.envvars.length; i += 1) {
       const { envvar = null, value = null } = this.envvars[i];
       if (envvar !== null && value !== null) {
-        await this.connection.execute(`CALL QSYS2.QCMDEXC('ADDENVVAR ENVVAR(${envvar}) VALUE(''${value}'')')`);
+        const cmd = this.buildAddEnvVarCommand(envvar, value);
+        await this.connection.execute(`CALL QSYS2.QCMDEXC(?)`, { parameters: [cmd] });
         this.log(`Set environment variable: ${envvar}=${value}`, 'debug');
       }
     }
@@ -126,6 +127,21 @@ class rmPoolConnection {
    */
   setAvailable(availability: boolean): void {
     this.available = availability;
+  }
+
+  /**
+   * Builds a sanitized ADDENVVAR CL command string.
+   * Validates the environment variable name and escapes the value.
+   * @param {string} envvar - Environment variable name (alphanumeric and underscores only).
+   * @param {string} value - Environment variable value.
+   * @returns {string} The sanitized CL command string.
+   */
+  buildAddEnvVarCommand(envvar: string, value: string): string {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(envvar)) {
+      throw new Error(`Invalid environment variable name: ${envvar}`);
+    }
+    const safeValue = value.replace(/'/g, "''");
+    return `ADDENVVAR ENVVAR(${envvar}) VALUE('${safeValue}')`;
   }
 
   /**
