@@ -13,7 +13,7 @@
 
 ### 2. No input validation on envvar/value (High)
 - **File:** `src/rmPoolConnection.ts:63`
-- **Status:** Open
+- **Status:** Resolved (addressed in issue 1 fix)
 - **Description:** Environment variable names and values are passed directly into a `QCMDEXC` call with no sanitization. A malicious value could inject arbitrary IBM i commands.
 
 ---
