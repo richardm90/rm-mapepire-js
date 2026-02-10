@@ -127,7 +127,7 @@ Main class for managing multiple connection pools.
 
 ### rmPool
 
-Manages a pool of database connections.
+Manages a pool of database connections. Extends `EventEmitter`.
 
 #### Methods
 
@@ -143,6 +143,27 @@ Manages a pool of database connections.
 - `getStats()`: Get pool statistics summary
 - `printInfo()`: Print detailed pool information to console
 - `printStats()`: Print pool statistics to console
+
+#### Events
+
+- `pool:initialized` — Pool init complete. Payload: `{ poolId, connections }`
+- `connection:created` — New connection added. Payload: `{ poolId, poolIndex, jobName }`
+- `connection:attached` — Connection handed to consumer. Payload: `{ poolId, poolIndex }`
+- `connection:detached` — Connection returned to pool. Payload: `{ poolId, poolIndex }`
+- `connection:retired` — Connection removed from pool. Payload: `{ poolId, poolIndex }`
+- `connection:expired` — Expiry timer fired. Payload: `{ poolId, poolIndex }`
+- `connection:healthCheckFailed` — Health check failed before retire. Payload: `{ poolId, poolIndex }`
+- `pool:exhausted` — Max connections reached. Payload: `{ poolId, maxSize }`
+
+```typescript
+const pool = await pools.get('myPool');
+pool.on('connection:created', ({ poolId, poolIndex, jobName }) => {
+  console.log(`New connection ${poolIndex} created (job: ${jobName})`);
+});
+pool.on('pool:exhausted', ({ poolId, maxSize }) => {
+  console.warn(`Pool ${poolId} exhausted at ${maxSize} connections`);
+});
+```
 
 ### rmPoolConnection
 

@@ -1,9 +1,10 @@
+import { EventEmitter } from 'events';
 import rmPoolConnection from './rmPoolConnection';
 import { PoolConfig, InitialConnections, IncrementConnections, JDBCOptions, QueryOptions } from './types';
 import { DaemonServer } from '@ibm/mapepire-js';
 import logger from './logger';
 
-class rmPool {
+class rmPool extends EventEmitter {
   connections: rmPoolConnection[];
   id: string;
   config: PoolConfig;
@@ -41,6 +42,7 @@ class rmPool {
    * @constructor
    */
   constructor(config: { id: string; config?: PoolConfig }, debug: boolean = false) {
+    super();
     this.connections = [];
 
     // Set pool configuration
@@ -79,6 +81,7 @@ class rmPool {
     }
 
     this.log(`Connection pool initialized`);
+    this.emit('pool:initialized', { poolId: this.id, connections: this.connections.length });
   }
 
   /**
@@ -97,6 +100,7 @@ class rmPool {
     conn.setAvailable(true);
 
     this.log(`Connection ${poolIndex} created, job ${conn.jobName}`);
+    this.emit('connection:created', { poolId: this.id, poolIndex, jobName: conn.jobName });
 
     return conn;
   }
@@ -183,6 +187,7 @@ class rmPool {
       throw reason;
     }
     this.log(`Connection ${index} detached`);
+    this.emit('connection:detached', { poolId: this.id, poolIndex: index });
     return true;
   }
 
@@ -211,6 +216,7 @@ class rmPool {
       throw reason;
     }
     this.log(`Connection ${index} retired`);
+    this.emit('connection:retired', { poolId: this.id, poolIndex: index });
   }
 
   /**
@@ -251,6 +257,7 @@ class rmPool {
             const healthy = await this.connections[i].isHealthy();
             if (!healthy) {
               this.log(`Connection ${this.connections[i].poolIndex} failed health check, retiring`);
+              this.emit('connection:healthCheckFailed', { poolId: this.id, poolIndex: this.connections[i].poolIndex });
               await this.retire(this.connections[i]);
               healthCheckFailed = true;
               break; // Restart search — splice shifted array indices
@@ -261,6 +268,7 @@ class rmPool {
 
           validConnection = true;
           this.log(`Connection ${this.connections[i].poolIndex} found`);
+          this.emit('connection:attached', { poolId: this.id, poolIndex: this.connections[i].poolIndex });
           return this.connections[i];
         }
       }
@@ -273,6 +281,7 @@ class rmPool {
         if (this.connections.length >= this.maxSize) {
           const msg = `Maximum number of connections (${this.connections.length}) reached`;
           this.log(msg);
+          this.emit('pool:exhausted', { poolId: this.id, maxSize: this.maxSize });
           if (increasedPoolSize) {
             break;
           } else {
@@ -342,6 +351,7 @@ class rmPool {
   async setExpired(conn: rmPoolConnection): Promise<void> {
     conn.setAvailable(false);
     this.log(`Connection ${conn.poolIndex} expired`);
+    this.emit('connection:expired', { poolId: this.id, poolIndex: conn.poolIndex });
 
     try {
       await this.retire(conn);

@@ -313,6 +313,113 @@ describe('rmPool', () => {
     });
   });
 
+  describe('events', () => {
+    it('should emit pool:initialized on init', async () => {
+      const pool = new rmPool(mockConfig);
+      const handler = jest.fn();
+      pool.on('pool:initialized', handler);
+
+      await pool.init();
+
+      expect(handler).toHaveBeenCalledWith({
+        poolId: 'test-pool',
+        connections: 2,
+      });
+    });
+
+    it('should emit connection:created for each new connection', async () => {
+      const pool = new rmPool(mockConfig);
+      const handler = jest.fn();
+      pool.on('connection:created', handler);
+
+      await pool.init();
+
+      expect(handler).toHaveBeenCalledTimes(2);
+      expect(handler).toHaveBeenCalledWith(
+        expect.objectContaining({ poolId: 'test-pool', poolIndex: 1 })
+      );
+      expect(handler).toHaveBeenCalledWith(
+        expect.objectContaining({ poolId: 'test-pool', poolIndex: 2 })
+      );
+    });
+
+    it('should emit connection:attached and connection:detached', async () => {
+      const pool = new rmPool(mockConfig);
+      await pool.init();
+
+      const attachHandler = jest.fn();
+      const detachHandler = jest.fn();
+      pool.on('connection:attached', attachHandler);
+      pool.on('connection:detached', detachHandler);
+
+      const conn = await pool.attach();
+      expect(attachHandler).toHaveBeenCalledWith({
+        poolId: 'test-pool',
+        poolIndex: conn.poolIndex,
+      });
+
+      await pool.detach(conn);
+      expect(detachHandler).toHaveBeenCalledWith({
+        poolId: 'test-pool',
+        poolIndex: conn.poolIndex,
+      });
+    });
+
+    it('should emit connection:retired when a connection is retired', async () => {
+      const pool = new rmPool(mockConfig);
+      await pool.init();
+
+      const handler = jest.fn();
+      pool.on('connection:retired', handler);
+
+      const conn = pool.connections[0];
+      await pool.retire(conn);
+
+      expect(handler).toHaveBeenCalledWith({
+        poolId: 'test-pool',
+        poolIndex: 1,
+      });
+    });
+
+    it('should emit connection:healthCheckFailed when health check fails', async () => {
+      const pool = new rmPool(mockConfig);
+      await pool.init();
+
+      const handler = jest.fn();
+      pool.on('connection:healthCheckFailed', handler);
+
+      jest.spyOn(pool.connections[0], 'isHealthy').mockResolvedValue(false);
+
+      await pool.attach();
+
+      expect(handler).toHaveBeenCalledWith({
+        poolId: 'test-pool',
+        poolIndex: 1,
+      });
+    });
+
+    it('should emit pool:exhausted when max connections reached', async () => {
+      const pool = new rmPool(mockConfig);
+      await pool.init();
+
+      const handler = jest.fn();
+      pool.on('pool:exhausted', handler);
+
+      // Attach all connections to exhaust the pool
+      for (let i = 0; i < pool.maxSize; i++) {
+        await pool.attach();
+      }
+
+      // Next attach should throw and emit pool:exhausted
+      await expect(pool.attach()).rejects.toThrow();
+
+      expect(handler).toHaveBeenCalledWith({
+        poolId: 'test-pool',
+        maxSize: 5,
+      });
+    });
+  });
+
   describe('expiry timers', () => {
     beforeEach(() => {
       jest.useFakeTimers();
