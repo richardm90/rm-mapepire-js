@@ -240,7 +240,7 @@ class rmPool {
       }
     }
 
-    return connection!;
+    throw new Error('rmPool: Unable to attach a connection');
   }
 
   /**
