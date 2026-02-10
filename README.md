@@ -1,7 +1,30 @@
 # rm-mapepire-js
 
-A TypeScript wrapper over the IBM Mapepire DB2 client for Node.js, providing
-connection pooling and management for IBM i databases.
+A TypeScript wrapper over the IBM Mapepire DB2 client for Node.js, providing connection pooling and management for IBM i databases.
+
+## Why rm-mapepire-js?
+
+The base `@ibm/mapepire-js` package provides a WebSocket-based DB2 client for IBM i — but it leaves connection lifecycle management, pooling strategy, and production concerns up to you. **rm-mapepire-js** builds on top of it to deliver a production-ready experience:
+
+- **Enterprise Connection Pooling** — Auto-scaling pools with configurable min/max sizing, on-demand growth, and batch connection creation. The base package has a basic pool; this library adds tiered connection management with separate policies for initial vs. overflow connections.
+
+- **Automatic Connection Expiry** — Idle overflow connections are automatically retired after a configurable timeout, freeing IBM i jobs during low-activity periods. Initial connections can be set to persist indefinitely.
+
+- **Health Checks with Transparent Retry** — Connections are validated before being handed out (`VALUES 1` probe). Unhealthy connections are silently retired and replaced, so your application code never sees a stale connection.
+
+- **Thread-Safe Attach** — A promise-chain mutex serializes connection checkout, preventing race conditions when multiple callers request connections simultaneously.
+
+- **Multi-Pool Management** — Run up to 8 isolated pools (e.g., production, reporting, batch) under a single `RmPools` manager with independent configuration, credentials, and lifecycle.
+
+- **Init Commands** — Automatically execute CL commands or SQL statements on every new connection (set library lists, environment variables, job attributes) so connections are ready to use immediately.
+
+- **Event-Driven Lifecycle** — `RmPool` extends `EventEmitter` with 8 lifecycle events (`connection:created`, `connection:expired`, `pool:exhausted`, etc.) for monitoring, metrics, and orchestration.
+
+- **Injectable Logging** — Plug in your own logger (Winston, Pino, etc.) via a simple interface. Logs flow hierarchically through the entire class chain with structured service metadata.
+
+- **Hardened Error Handling** — Pool operations are wrapped with contextual error information (pool ID, connection index, job name) and graceful degradation, so a single bad connection doesn't take down your pool.
+
+- **TypeScript-First** — Full type coverage with exported interfaces for all configuration, making misconfiguration a compile-time error rather than a runtime surprise.
 
 ## Installation
 
@@ -152,6 +175,42 @@ import { RmConnection } from 'rm-mapepire-js';
 const conn = new RmConnection(creds, jdbcOptions, [], false, myLogger);
 await conn.init();
 ```
+
+#### Quick Start: Winston
+
+Winston's `log(level, message, meta)` method matches the `Logger` interface directly, so a Winston logger can be passed in as-is:
+
+```typescript
+import winston from 'winston';
+import { RmPools } from 'rm-mapepire-js';
+
+const logger = winston.createLogger({
+  level: 'debug',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.File({ filename: 'db.log' })
+  ]
+});
+
+const pools = new RmPools({
+  debug: true,
+  logger,
+  pools: [
+    {
+      id: 'myPool',
+      PoolOptions: { creds: { host: '...', port: 8076, user: '...', password: '...' } }
+    }
+  ]
+});
+
+await pools.init();
+```
+
+All pool and connection activity will now flow through Winston — no adapter needed.
 
 ## API Reference
 
