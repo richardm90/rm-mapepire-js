@@ -16,7 +16,7 @@ describe('rmPoolConnection', () => {
       },
       dbConnectorDebug: false,
       JDBCOptions: {},
-      envvars: [],
+      initCommands: [],
     },
   };
 
@@ -40,7 +40,7 @@ describe('rmPoolConnection', () => {
 
       expect(connection.debug).toBe(false);
       expect(connection.JDBCOptions).toEqual({});
-      expect(connection.envvars).toEqual([]);
+      expect(connection.initCommands).toEqual([]);
     });
   });
 

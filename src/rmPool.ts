@@ -13,7 +13,7 @@ class rmPool {
   incrementConnections: IncrementConnections;
   dbConnectorDebug: boolean;
   JDBCOptions: JDBCOptions;
-  envvars: any[];
+  initCommands: any[];
   debug: boolean;
 
   /**
@@ -46,7 +46,7 @@ class rmPool {
     this.incrementConnections.expiry = this.incrementConnections.expiry || null;
     this.dbConnectorDebug = opts.dbConnectorDebug || false;
     this.JDBCOptions = opts.JDBCOptions || {};
-    this.envvars = opts.envvars || [];
+    this.initCommands = opts.initCommands || [];
     this.debug = debug || false;
   }
 

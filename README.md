@@ -103,7 +103,7 @@ await pool.detach(connection);
   - `expiry`: Expiry time for new connections in minutes (same rules as above)
 - `dbConnectorDebug`: Enable debug logging (default: false)
 - `JDBCOptions`: JDBC options object - a standard Mapepire JDBCOptions object
-- `envvars`: Array of environment variables to set for each connection
+- `initCommands`: Array of commands to execute when each connection is initialized. Each entry is an object with `command` (string) and optional `type` (`'cl'` or `'sql'`, defaults to `'cl'`). CL commands are executed via `QCMDEXC`; SQL commands are executed directly.
 
 ## API Reference
 

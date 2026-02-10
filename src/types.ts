@@ -2,9 +2,9 @@ import { JDBCOptions, DaemonServer } from '@ibm/mapepire-js';
 
 export { JDBCOptions, DaemonServer };
 
-export interface EnvVar {
-  envvar: string | null;
-  value: string | null;
+export interface InitCommand {
+  command: string;
+  type?: 'cl' | 'sql';
 }
 
 export interface InitialConnections {
@@ -24,7 +24,7 @@ export interface PoolOptions {
   incrementConnections?: IncrementConnections;
   dbConnectorDebug?: boolean;
   JDBCOptions?: JDBCOptions;
-  envvars?: EnvVar[];
+  initCommands?: InitCommand[];
 }
 
 export interface PoolConfig {

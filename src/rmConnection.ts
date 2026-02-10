@@ -1,5 +1,5 @@
 import { SQLJob, JDBCOptions, DaemonServer, States } from '@ibm/mapepire-js';
-import { EnvVar, QueryOptions } from './types';
+import { InitCommand, QueryOptions } from './types';
 import logger from './logger';
 
 /**
@@ -9,7 +9,7 @@ class rmConnection {
   creds: DaemonServer;
   debug: boolean;
   JDBCOptions: JDBCOptions;
-  envvars: EnvVar[];
+  initCommands: InitCommand[];
   available: boolean;
   job!: SQLJob;
   jobName?: string;
@@ -17,15 +17,15 @@ class rmConnection {
   /**
    * @description
    * Instantiates a new instance of a rmConnection class.
-   * @param {object} cred - connection credentials
+   * @param {object} creds - connection credentials
    * @param {object} JDBCOptions - JDBCOptions
-   * @param {object} envvars - envvars
+   * @param {object} initCommands - commands to run on connection init
    * @param {object} debug - debug
    */
-  constructor(creds: DaemonServer, JDBCOptions: JDBCOptions, envvars: EnvVar[] = [], debug: boolean = false) {
+  constructor(creds: DaemonServer, JDBCOptions: JDBCOptions, initCommands: InitCommand[] = [], debug: boolean = false) {
     this.creds = creds || {};
     this.JDBCOptions = JDBCOptions || {};
-    this.envvars = envvars || [];
+    this.initCommands = initCommands || [];
     this.available = false;
     this.debug = debug || false;
   }
@@ -46,20 +46,18 @@ class rmConnection {
     if (!suppressConnectionMessage)
       this.log(`Connected`, 'info');
 
-    // Set connection (IBM i job) environment variables
-    for (let i = 0; i < this.envvars.length; i += 1) {
-      const { envvar = null, value = null } = this.envvars[i];
-      if (envvar !== null && value !== null) {
-        const cmd = this.buildAddEnvVarCommand(envvar, value);
-        await this.job.execute(`CALL QSYS2.QCMDEXC(?)`, { parameters: [cmd] });
-        this.log(`Set environment variable: ${envvar}=${value}`, 'debug');
+    // Execute init commands on the connection (IBM i job)
+    for (let i = 0; i < this.initCommands.length; i += 1) {
+      const { command, type = 'cl' } = this.initCommands[i];
+      if (command) {
+        if (type === 'sql') {
+          await this.job.execute(command);
+        } else {
+          await this.job.execute(`CALL QSYS2.QCMDEXC(?)`, { parameters: [command] });
+        }
+        this.log(`Executed init command (${type}): ${command}`, 'debug');
       }
     }
-
-    // Initialize IBM i job environment
-    // - Uses GB System signon program
-    // TODO: sort out initial program and library list
-    // TODO: await this.connection.execute(`CALL QSYS2.QCMDEXC('CALL PGM(GBSSIGNWB)')`);
   }
 
   async execute(sql: string, opts: QueryOptions = {}): Promise<any> {
@@ -105,21 +103,6 @@ class rmConnection {
    */
   printInfo(): void {
     console.log('Connection Info:', JSON.stringify(this.getInfo(), null, 2));
-  }
-
-  /**
-   * Builds a sanitized ADDENVVAR CL command string.
-   * Validates the environment variable name and escapes the value.
-   * @param {string} envvar - Environment variable name (alphanumeric and underscores only).
-   * @param {string} value - Environment variable value.
-   * @returns {string} The sanitized CL command string.
-   */
-  buildAddEnvVarCommand(envvar: string, value: string): string {
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(envvar)) {
-      throw new Error(`Invalid environment variable name: ${envvar}`);
-    }
-    const safeValue = value.replace(/'/g, "''");
-    return `ADDENVVAR ENVVAR(${envvar}) VALUE('${safeValue}') REPLACE(*YES)`;
   }
 
   /**

@@ -1,5 +1,5 @@
 import rmConnection from '../src/rmConnection';
-import { EnvVar } from '../src/types';
+import { InitCommand } from '../src/types';
 import { SQLJob, States } from '@ibm/mapepire-js';
 
 jest.mock('@ibm/mapepire-js');
@@ -23,16 +23,16 @@ describe('rmConnection', () => {
       expect(conn).toBeInstanceOf(rmConnection);
       expect(conn.creds).toEqual(mockCreds);
       expect(conn.JDBCOptions).toEqual({});
-      expect(conn.envvars).toEqual([]);
+      expect(conn.initCommands).toEqual([]);
       expect(conn.available).toBe(false);
       expect(conn.debug).toBe(false);
     });
 
-    it('should accept envvars and debug parameters', () => {
-      const envvars: EnvVar[] = [{ envvar: 'MY_VAR', value: 'my_val' }];
-      const conn = new rmConnection(mockCreds, mockJDBCOptions, envvars, true);
+    it('should accept initCommands and debug parameters', () => {
+      const initCommands: InitCommand[] = [{ command: 'CHGLIBL LIBL(MYLIB QGPL)' }];
+      const conn = new rmConnection(mockCreds, mockJDBCOptions, initCommands, true);
 
-      expect(conn.envvars).toEqual(envvars);
+      expect(conn.initCommands).toEqual(initCommands);
       expect(conn.debug).toBe(true);
     });
   });
@@ -63,10 +63,10 @@ describe('rmConnection', () => {
       expect(conn.jobName).toBeDefined();
     });
 
-    it('should set environment variables using parameterized QCMDEXC', async () => {
+    it('should execute CL init commands via parameterized QCMDEXC', async () => {
       const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
-      const envvars: EnvVar[] = [{ envvar: 'TEST_VAR', value: 'test_value' }];
-      const conn = new rmConnection(mockCreds, mockJDBCOptions, envvars);
+      const initCommands: InitCommand[] = [{ command: 'CHGLIBL LIBL(MYLIB QGPL)' }];
+      const conn = new rmConnection(mockCreds, mockJDBCOptions, initCommands);
 
       await conn.init();
 
@@ -74,24 +74,73 @@ describe('rmConnection', () => {
       expect(qcmdexcCall).toBeDefined();
       expect(qcmdexcCall![0]).toBe('CALL QSYS2.QCMDEXC(?)');
       expect(qcmdexcCall![1]).toEqual({
-        parameters: ["ADDENVVAR ENVVAR(TEST_VAR) VALUE('test_value') REPLACE(*YES)"],
+        parameters: ['CHGLIBL LIBL(MYLIB QGPL)'],
       });
 
       executeSpy.mockRestore();
     });
 
-    it('should skip envvars with null name or value', async () => {
+    it('should default to cl type when not specified', async () => {
       const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
-      const envvars: EnvVar[] = [
-        { envvar: null, value: 'val' },
-        { envvar: 'VAR', value: null },
-      ];
-      const conn = new rmConnection(mockCreds, mockJDBCOptions, envvars);
+      const initCommands: InitCommand[] = [{ command: 'ADDLIBLE MYLIB' }];
+      const conn = new rmConnection(mockCreds, mockJDBCOptions, initCommands);
+
+      await conn.init();
+
+      const qcmdexcCall = executeSpy.mock.calls.find((call: any[]) => call[0].includes('QCMDEXC'));
+      expect(qcmdexcCall).toBeDefined();
+      expect(qcmdexcCall![0]).toBe('CALL QSYS2.QCMDEXC(?)');
+      expect(qcmdexcCall![1]).toEqual({
+        parameters: ['ADDLIBLE MYLIB'],
+      });
+
+      executeSpy.mockRestore();
+    });
+
+    it('should execute SQL init commands directly', async () => {
+      const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
+      const initCommands: InitCommand[] = [{ command: 'SET SCHEMA MYLIB', type: 'sql' }];
+      const conn = new rmConnection(mockCreds, mockJDBCOptions, initCommands);
+
+      await conn.init();
+
+      const sqlCall = executeSpy.mock.calls.find((call: any[]) => call[0] === 'SET SCHEMA MYLIB');
+      expect(sqlCall).toBeDefined();
+
+      executeSpy.mockRestore();
+    });
+
+    it('should skip init commands with empty command', async () => {
+      const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
+      const initCommands: InitCommand[] = [{ command: '' }];
+      const conn = new rmConnection(mockCreds, mockJDBCOptions, initCommands);
 
       await conn.init();
 
       const qcmdexcCalls = executeSpy.mock.calls.filter((call: any[]) => call[0].includes('QCMDEXC'));
       expect(qcmdexcCalls).toHaveLength(0);
+
+      executeSpy.mockRestore();
+    });
+
+    it('should execute mixed CL and SQL init commands', async () => {
+      const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
+      const initCommands: InitCommand[] = [
+        { command: 'CHGLIBL LIBL(MYLIB QGPL)', type: 'cl' },
+        { command: 'SET SCHEMA MYLIB', type: 'sql' },
+      ];
+      const conn = new rmConnection(mockCreds, mockJDBCOptions, initCommands);
+
+      await conn.init();
+
+      const qcmdexcCall = executeSpy.mock.calls.find((call: any[]) => call[0].includes('QCMDEXC'));
+      expect(qcmdexcCall).toBeDefined();
+      expect(qcmdexcCall![1]).toEqual({
+        parameters: ['CHGLIBL LIBL(MYLIB QGPL)'],
+      });
+
+      const sqlCall = executeSpy.mock.calls.find((call: any[]) => call[0] === 'SET SCHEMA MYLIB');
+      expect(sqlCall).toBeDefined();
 
       executeSpy.mockRestore();
     });
@@ -183,42 +232,4 @@ describe('rmConnection', () => {
     });
   });
 
-  describe('buildAddEnvVarCommand', () => {
-    it('should build a valid ADDENVVAR command', () => {
-      const conn = new rmConnection(mockCreds, mockJDBCOptions);
-      const cmd = conn.buildAddEnvVarCommand('MY_VAR', 'hello');
-      expect(cmd).toBe("ADDENVVAR ENVVAR(MY_VAR) VALUE('hello') REPLACE(*YES)");
-    });
-
-    it('should escape single quotes in the value', () => {
-      const conn = new rmConnection(mockCreds, mockJDBCOptions);
-      const cmd = conn.buildAddEnvVarCommand('MY_VAR', "it's a test");
-      expect(cmd).toBe("ADDENVVAR ENVVAR(MY_VAR) VALUE('it''s a test') REPLACE(*YES)");
-    });
-
-    it('should escape multiple single quotes in the value', () => {
-      const conn = new rmConnection(mockCreds, mockJDBCOptions);
-      const cmd = conn.buildAddEnvVarCommand('MY_VAR', "a'b'c");
-      expect(cmd).toBe("ADDENVVAR ENVVAR(MY_VAR) VALUE('a''b''c') REPLACE(*YES)");
-    });
-
-    it('should reject envvar names with special characters', () => {
-      const conn = new rmConnection(mockCreds, mockJDBCOptions);
-      expect(() => conn.buildAddEnvVarCommand("DROP TABLE--", "val")).toThrow('Invalid environment variable name');
-      expect(() => conn.buildAddEnvVarCommand("MY VAR", "val")).toThrow('Invalid environment variable name');
-      expect(() => conn.buildAddEnvVarCommand("MY'VAR", "val")).toThrow('Invalid environment variable name');
-      expect(() => conn.buildAddEnvVarCommand("MY;VAR", "val")).toThrow('Invalid environment variable name');
-    });
-
-    it('should reject envvar names starting with a number', () => {
-      const conn = new rmConnection(mockCreds, mockJDBCOptions);
-      expect(() => conn.buildAddEnvVarCommand("1VAR", "val")).toThrow('Invalid environment variable name');
-    });
-
-    it('should accept envvar names starting with underscore', () => {
-      const conn = new rmConnection(mockCreds, mockJDBCOptions);
-      const cmd = conn.buildAddEnvVarCommand('_MY_VAR', 'hello');
-      expect(cmd).toBe("ADDENVVAR ENVVAR(_MY_VAR) VALUE('hello') REPLACE(*YES)");
-    });
-  });
 });

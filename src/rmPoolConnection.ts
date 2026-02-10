@@ -1,6 +1,6 @@
 import rmConnection from './rmConnection';
 import { JDBCOptions, DaemonServer, States } from '@ibm/mapepire-js';
-import { PoolConfig, EnvVar, QueryOptions } from './types';
+import { PoolConfig, InitCommand, QueryOptions } from './types';
 import logger from './logger';
 
 /**
@@ -12,7 +12,7 @@ class rmPoolConnection {
   creds: DaemonServer;
   debug: boolean;
   JDBCOptions: JDBCOptions;
-  envvars: EnvVar[];
+  initCommands: InitCommand[];
   available: boolean;
   expiryTimerId: NodeJS.Timeout | null;
   connection!: rmConnection;
@@ -30,7 +30,7 @@ class rmPoolConnection {
     this.creds = pool.PoolOptions.creds;
     this.debug = pool.PoolOptions?.dbConnectorDebug || false;
     this.JDBCOptions = pool.PoolOptions?.JDBCOptions || {};
-    this.envvars = pool.PoolOptions?.envvars || [];
+    this.initCommands = pool.PoolOptions?.initCommands || [];
     this.available = false;
     this.expiryTimerId = null;
     this.debug = debug || false;
@@ -42,7 +42,7 @@ class rmPoolConnection {
   async init(poolIndex: number): Promise<void> {
     this.poolIndex = poolIndex;
 
-    this.connection = new rmConnection(this.creds, this.JDBCOptions, this.envvars, this.debug);
+    this.connection = new rmConnection(this.creds, this.JDBCOptions, this.initCommands, this.debug);
 
     await this.connection.init(true);
 
