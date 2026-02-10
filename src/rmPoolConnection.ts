@@ -1,5 +1,5 @@
 import rmConnection from './rmConnection';
-import { SQLJob, JDBCOptions, DaemonServer, States } from '@ibm/mapepire-js';
+import { JDBCOptions, DaemonServer, States } from '@ibm/mapepire-js';
 import { PoolConfig, EnvVar, QueryOptions } from './types';
 import logger from './logger';
 
@@ -44,7 +44,7 @@ class rmPoolConnection {
 
     this.connection = new rmConnection(this.creds, this.JDBCOptions, this.envvars, this.debug);
 
-    await this.connection.init();
+    await this.connection.init(true);
 
     // Grab IBM i job name
     this.jobName = this.connection.jobName;
@@ -52,23 +52,9 @@ class rmPoolConnection {
     this.log(`Initialized, job name=${this.jobName}`, 'info');
 
     // Output connection details in IBM i joblog
-    // TODO: process.env.PROJECT_NAME not defined
-    const message = `${process.env.PROJECT_NAME}: PoolId=${this.poolId}, Connection=${this.poolIndex}`;
-    await this.connection.execute(`CALL SYSTOOLS.LPRINTF('${message}')`);
-
-    // Set connection (IBM i job) environment variables
-    for (let i = 0; i < this.envvars.length; i += 1) {
-      const { envvar = null, value = null } = this.envvars[i];
-      if (envvar !== null && value !== null) {
-        await this.connection.execute(`CALL QSYS2.QCMDEXC('ADDENVVAR ENVVAR(${envvar}) VALUE(''${value}'')')`);
-        this.log(`Set environment variable: ${envvar}=${value}`, 'debug');
-      }
-    }
-
-    // Initialize IBM i job environment
-    // - Uses GB System signon program
-    // TODO: sort out initial program and library list
-    // TODO: await this.connection.execute(`CALL QSYS2.QCMDEXC('CALL PGM(GBSSIGNWB)')`);
+    const projectPrefix = process.env.PROJECT_NAME ? `${process.env.PROJECT_NAME}: ` : '';
+    const message = `${projectPrefix}PoolId=${this.poolId}, Connection=${this.poolIndex}`;
+    await this.connection.execute(`CALL SYSTOOLS.LPRINTF(?)`, { parameters: [message] });
   }
 
   async query(sql: string, opts: QueryOptions = {}): Promise<any> {

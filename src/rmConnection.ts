@@ -33,7 +33,7 @@ class rmConnection {
   /**
    * Initializes an instance of rmConnection.
    */
-  async init(): Promise<void> {
+  async init(suppressConnectionMessage: boolean = false): Promise<void> {
     this.job = new SQLJob(this.JDBCOptions);
 
     if (this.job.getStatus() === States.JobStatus.NOT_STARTED) {
@@ -43,13 +43,15 @@ class rmConnection {
     // Grab IBM i job name
     this.jobName = this.job.id;
 
-    this.log(`Connected, job name=${this.jobName}`, 'info');
+    if (!suppressConnectionMessage)
+      this.log(`Connected`, 'info');
 
     // Set connection (IBM i job) environment variables
     for (let i = 0; i < this.envvars.length; i += 1) {
       const { envvar = null, value = null } = this.envvars[i];
       if (envvar !== null && value !== null) {
-        await this.job.execute(`CALL QSYS2.QCMDEXC('ADDENVVAR ENVVAR(${envvar}) VALUE(''${value}'')')`);
+        const cmd = this.buildAddEnvVarCommand(envvar, value);
+        await this.job.execute(`CALL QSYS2.QCMDEXC(?)`, { parameters: [cmd] });
         this.log(`Set environment variable: ${envvar}=${value}`, 'debug');
       }
     }
@@ -103,6 +105,21 @@ class rmConnection {
    */
   printInfo(): void {
     console.log('Connection Info:', JSON.stringify(this.getInfo(), null, 2));
+  }
+
+  /**
+   * Builds a sanitized ADDENVVAR CL command string.
+   * Validates the environment variable name and escapes the value.
+   * @param {string} envvar - Environment variable name (alphanumeric and underscores only).
+   * @param {string} value - Environment variable value.
+   * @returns {string} The sanitized CL command string.
+   */
+  buildAddEnvVarCommand(envvar: string, value: string): string {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(envvar)) {
+      throw new Error(`Invalid environment variable name: ${envvar}`);
+    }
+    const safeValue = value.replace(/'/g, "''");
+    return `ADDENVVAR ENVVAR(${envvar}) VALUE('${safeValue}') REPLACE(*YES)`;
   }
 
   /**

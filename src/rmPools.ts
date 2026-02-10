@@ -22,8 +22,6 @@ class rmPools {
     this.activate = this.config.activate ?? true;
     this.debug = this.config.debug || false;
 
-    logger.log('info', `this.debug: ${this.debug}`, { service: 'rmPools' });
-
     this.pools = [];
   }
 

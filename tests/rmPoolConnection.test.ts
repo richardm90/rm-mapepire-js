@@ -1,6 +1,6 @@
 import rmPoolConnection from '../src/rmPoolConnection';
 import { PoolConfig } from '../src/types';
-import { States } from '@ibm/mapepire-js';
+import { SQLJob, States } from '@ibm/mapepire-js';
 
 // Mock the module before tests run
 jest.mock('@ibm/mapepire-js');
@@ -92,6 +92,23 @@ describe('rmPoolConnection', () => {
       const result = await connection.query('SELECT * FROM TEST WHERE id = ?', opts);
 
       expect(result).toBeDefined();
+    });
+  });
+
+  describe('init with parameterized queries', () => {
+    it('should use parameterized call for LPRINTF', async () => {
+      const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
+      const connection = new rmPoolConnection(mockPoolConfig);
+      process.env.PROJECT_NAME = 'TestProject';
+
+      await connection.init(1);
+
+      const lprintfCall = executeSpy.mock.calls.find((call: any[]) => call[0].includes('LPRINTF'));
+      expect(lprintfCall).toBeDefined();
+      expect(lprintfCall![0]).toBe('CALL SYSTOOLS.LPRINTF(?)');
+      expect(lprintfCall![1]).toEqual({ parameters: [expect.stringContaining('TestProject')] });
+
+      executeSpy.mockRestore();
     });
   });
 
