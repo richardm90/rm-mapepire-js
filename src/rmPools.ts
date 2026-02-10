@@ -126,8 +126,8 @@ class RmPools {
    * @returns {RmPoolConnection} - RmPool connection instance.
    */
   async attach(pool: RmPool): Promise<RmPoolConnection> {
-    const rmPoolConnectionInstance = await pool.attach();
-    return rmPoolConnectionInstance;
+    const connection = await pool.attach();
+    return connection;
   }
 
   /**
@@ -224,7 +224,7 @@ class RmPools {
    */
   log(message: string = '', type: string = 'debug'): void {
     if (type !== 'debug' || this.debug) {
-      this.logger.log(type, `${message}`, { service: 'rmPools' });
+      this.logger.log(type, `${message}`, { service: 'RmPools' });
     }
   }
 }

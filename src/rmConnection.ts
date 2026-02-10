@@ -17,7 +17,7 @@ class RmConnection {
 
   /**
    * @description
-   * Instantiates a new instance of a rmConnection class.
+   * Instantiates a new instance of a RmConnection class.
    * @param {object} creds - connection credentials
    * @param {object} JDBCOptions - JDBCOptions
    * @param {object} initCommands - commands to run on connection init
@@ -33,7 +33,7 @@ class RmConnection {
   }
 
   /**
-   * Initializes an instance of rmConnection.
+   * Initializes an instance of RmConnection.
    */
   async init(suppressConnectionMessage: boolean = false): Promise<void> {
     this.job = new SQLJob(this.JDBCOptions);
@@ -113,7 +113,7 @@ class RmConnection {
    */
   log(message: string = '', type: string = 'debug'): void {
     if (type !== 'debug' || this.debug) {
-      this.logger.log(type, `Job: ${this.jobName} - ${message}`, { service: 'rmConnection' });
+      this.logger.log(type, `Job: ${this.jobName} - ${message}`, { service: 'RmConnection' });
     }
   }
 }

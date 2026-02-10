@@ -227,7 +227,7 @@ describe('RmConnection', () => {
 
       expect(customLogger.log).toHaveBeenCalled();
       expect(customLogger.log.mock.calls.some(
-        (call: any[]) => call[2]?.service === 'rmConnection'
+        (call: any[]) => call[2]?.service === 'RmConnection'
       )).toBe(true);
     });
 

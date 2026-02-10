@@ -278,7 +278,7 @@ describe('RmPools', () => {
 
       expect(customLogger.log).toHaveBeenCalled();
       expect(customLogger.log.mock.calls.some(
-        (call: any[]) => call[2]?.service === 'rmPools'
+        (call: any[]) => call[2]?.service === 'RmPools'
       )).toBe(true);
     });
 
