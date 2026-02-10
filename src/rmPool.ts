@@ -17,6 +17,13 @@ class rmPool {
   debug: boolean;
 
   /**
+   * Auto-incrementing counter for assigning stable connection IDs.
+   * Unlike array position, this never changes after assignment,
+   * making it reliable for log tracing and diagnostics.
+   */
+  private nextConnectionId: number;
+
+  /**
    * Promise-chain mutex that serializes attach() calls.
    * Each attach() chains onto this promise, ensuring only one
    * runs at a time. This prevents two concurrent callers from
@@ -58,6 +65,7 @@ class rmPool {
     this.initCommands = opts.initCommands || [];
     this.debug = debug || false;
     this.attachQueue = Promise.resolve();
+    this.nextConnectionId = 0;
   }
 
   /**
@@ -78,7 +86,8 @@ class rmPool {
   async createConnection(expiry?: number | null): Promise<rmPoolConnection> {
     const conn = new rmPoolConnection(this.config, this.debug);
 
-    const poolIndex = this.connections.push(conn);
+    this.connections.push(conn);
+    const poolIndex = ++this.nextConnectionId;
 
     await conn.init(poolIndex);
     conn.expiry = expiry;

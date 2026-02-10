@@ -212,6 +212,30 @@ describe('rmPool', () => {
 
       expect(pool.connections.length).toBe(initialLength - 1);
     });
+
+    it('should keep stable poolIndex after retire', async () => {
+      const pool = new rmPool(mockConfig);
+      await pool.init();
+
+      // Initial connections get IDs 1 and 2
+      const conn1 = pool.connections[0];
+      const conn2 = pool.connections[1];
+      expect(conn1.poolIndex).toBe(1);
+      expect(conn2.poolIndex).toBe(2);
+
+      // Retire conn1 — conn2 should keep its original ID
+      await pool.retire(conn1);
+      expect(pool.connections.length).toBe(1);
+      expect(pool.connections[0].poolIndex).toBe(2);
+
+      // Attach conn2 so all connections are busy, forcing a new one
+      const attached = await pool.attach();
+      expect(attached.poolIndex).toBe(2);
+
+      // This attach forces creation of a new connection — should get ID 3
+      const conn3 = await pool.attach();
+      expect(conn3.poolIndex).toBe(3);
+    });
   });
 
   describe('retireAll', () => {
