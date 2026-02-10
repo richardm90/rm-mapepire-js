@@ -61,10 +61,7 @@ class RmPoolConnection {
 
   async query(sql: string, opts: QueryOptions = {}): Promise<any> {
     this.log(`Executing query on connection ${this.poolIndex}`);
-    this.log(`SQL: ${sql}`);
-    this.log(`Opts: ${opts}`);
     const result = await this.connection.execute(sql, opts);
-    this.log(`Result: ${result}`);
     return result;
   }
 
@@ -76,11 +73,7 @@ class RmPoolConnection {
     try {
       this.setAvailable(true);
     } catch (error) {
-      const reason = new Error(`RmPoolConnection: failed to detach.`);
-      if (error instanceof Error) {
-        reason.stack += `\nCaused By:\n ${error.stack}`;
-      }
-      throw reason;
+      throw new Error(`RmPoolConnection: failed to detach.`, { cause: error });
     }
 
     return this;
@@ -94,11 +87,7 @@ class RmPoolConnection {
     try {
       await this.connection.close();
     } catch (error) {
-      const reason = new Error(`RmPoolConnection: failed to retire.`);
-      if (error instanceof Error) {
-        reason.stack += `\nCaused By:\n ${error.stack}`;
-      }
-      throw reason;
+      throw new Error(`RmPoolConnection: failed to retire.`, { cause: error });
     }
 
     return true;

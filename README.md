@@ -103,7 +103,7 @@ await pool.detach(connection);
   - `expiry`: Expiry time for new connections in minutes (same rules as above)
 - `dbConnectorDebug`: Enable debug logging (default: false)
 - `JDBCOptions`: JDBC options object - a standard Mapepire JDBCOptions object
-- `initCommands`: Array of commands to execute when each connection is initialized. Each entry is an object with `command` (string) and optional `type` (`'cl'` or `'sql'`, defaults to `'cl'`). CL commands are executed via `QCMDEXC`; SQL commands are executed directly.
+- `initCommands`: Array of commands to execute when each connection is initialized. Each entry is an object with `command` (string) and optional `type` (`'cl'` or `'sql'`, defaults to `'cl'`). CL commands are executed via `QCMDEXC` with parameterised input; SQL commands are executed directly via `job.execute()` without parameterisation. **Security note:** SQL-type init commands must be trusted, developer-supplied strings — never pass unsanitised user input as an init command.
 - `healthCheck`: Health check settings
   - `onAttach`: Verify connections are alive before returning from `attach()` by executing a lightweight query (`VALUES 1`). Unhealthy connections are automatically retired and replaced. (default: `true`). Set to `false` to disable.
 - `logger`: Custom logger object (per-pool override, see Logger below)

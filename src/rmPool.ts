@@ -117,11 +117,7 @@ class RmPool extends EventEmitter {
       try {
         await this.detach(this.connections[i]);
       } catch (error) {
-        const reason = new Error('RmPool: Failed to detachAll()');
-        if (error instanceof Error) {
-          reason.stack += `\nCaused By:\n ${error.stack}`;
-        }
-        throw reason;
+        throw new Error('RmPool: Failed to detachAll()', { cause: error });
       }
     }
 
@@ -140,11 +136,7 @@ class RmPool extends EventEmitter {
         await this.retire(this.connections[0]);
       }
     } catch (error) {
-      const reason = new Error('RmPool: Failed to retireAll()');
-      if (error instanceof Error) {
-        reason.stack += `\nCaused By:\n ${error.stack}`;
-      }
-      throw reason;
+      throw new Error('RmPool: Failed to retireAll()', { cause: error });
     }
     return true;
   }
@@ -162,11 +154,7 @@ class RmPool extends EventEmitter {
         await this.retire(this.connections[0]);
       }
     } catch (error) {
-      const reason = new Error('RmPool: Failed to close()');
-      if (error instanceof Error) {
-        reason.stack += `\nCaused By:\n ${error.stack}`;
-      }
-      throw reason;
+      throw new Error('RmPool: Failed to close()', { cause: error });
     }
     return true;
   }
@@ -182,11 +170,7 @@ class RmPool extends EventEmitter {
       await connection.detach();
       this.setExpiryTimer(connection);
     } catch (error) {
-      const reason = new Error('RmPool: Failed to detach()');
-      if (error instanceof Error) {
-        reason.stack += `\nCaused By:\n ${error.stack}`;
-      }
-      throw reason;
+      throw new Error('RmPool: Failed to detach()', { cause: error });
     }
     this.log(`Connection ${index} detached`);
     this.emit('connection:detached', { poolId: this.id, poolIndex: index });
@@ -210,12 +194,8 @@ class RmPool extends EventEmitter {
         this.connections.splice(connectionIndex, 1);
       }
     } catch (error) {
-      console.dir(error, { depth: 5 });
-      const reason = new Error(`RmPool: Failed to retire() Connection #${index}`);
-      if (error instanceof Error) {
-        reason.stack += `\nCaused By:\n ${error.stack}`;
-      }
-      throw reason;
+      this.log(`Failed to retire connection ${index}: ${error instanceof Error ? error.message : error}`, 'error');
+      throw new Error(`RmPool: Failed to retire() Connection #${index}`, { cause: error });
     }
     this.log(`Connection ${index} retired`);
     this.emit('connection:retired', { poolId: this.id, poolIndex: index });
@@ -245,6 +225,8 @@ class RmPool extends EventEmitter {
     let connection: RmPoolConnection | undefined;
     let i: number;
     let increasedPoolSize = false;
+    let healthCheckRetries = 0;
+    const maxHealthCheckRetries = this.maxSize;
 
     this.log('Finding available connection');
     while (!validConnection) {
@@ -261,6 +243,10 @@ class RmPool extends EventEmitter {
               this.log(`Connection ${this.connections[i].poolIndex} failed health check, retiring`);
               this.emit('connection:healthCheckFailed', { poolId: this.id, poolIndex: this.connections[i].poolIndex });
               await this.retire(this.connections[i]);
+              healthCheckRetries++;
+              if (healthCheckRetries >= maxHealthCheckRetries) {
+                throw new Error(`RmPool: All connections failed health check after ${healthCheckRetries} attempts`);
+              }
               healthCheckFailed = true;
               break; // Restart search — splice shifted array indices
             } else {
