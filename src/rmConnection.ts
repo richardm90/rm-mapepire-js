@@ -1,6 +1,6 @@
 import { SQLJob, JDBCOptions, DaemonServer, States } from '@ibm/mapepire-js';
-import { InitCommand, QueryOptions } from './types';
-import logger from './logger';
+import { InitCommand, QueryOptions, Logger } from './types';
+import defaultLogger from './logger';
 
 /**
  * Uses and Extends the Connection class implemented in idb-pconnector.
@@ -13,6 +13,7 @@ class rmConnection {
   available: boolean;
   job!: SQLJob;
   jobName?: string;
+  logger: Logger;
 
   /**
    * @description
@@ -22,12 +23,13 @@ class rmConnection {
    * @param {object} initCommands - commands to run on connection init
    * @param {object} debug - debug
    */
-  constructor(creds: DaemonServer, JDBCOptions: JDBCOptions, initCommands: InitCommand[] = [], debug: boolean = false) {
+  constructor(creds: DaemonServer, JDBCOptions: JDBCOptions, initCommands: InitCommand[] = [], debug: boolean = false, logger?: Logger) {
     this.creds = creds || {};
     this.JDBCOptions = JDBCOptions || {};
     this.initCommands = initCommands || [];
     this.available = false;
     this.debug = debug || false;
+    this.logger = logger || defaultLogger;
   }
 
   /**
@@ -111,7 +113,7 @@ class rmConnection {
    */
   log(message: string = '', type: string = 'debug'): void {
     if (type !== 'debug' || this.debug) {
-      logger.log(type, `Job: ${this.jobName} - ${message}`, { service: 'rmConnection' });
+      this.logger.log(type, `Job: ${this.jobName} - ${message}`, { service: 'rmConnection' });
     }
   }
 }

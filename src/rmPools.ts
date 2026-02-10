@@ -1,7 +1,7 @@
 import rmPool from './rmPool';
 import rmPoolConnection from './rmPoolConnection';
-import { PoolsConfig, PoolConfig, RegisteredPool } from './types';
-import logger from './logger';
+import { PoolsConfig, PoolConfig, RegisteredPool, Logger } from './types';
+import defaultLogger from './logger';
 
 const MAX_POOLS = 8;
 
@@ -10,6 +10,7 @@ class rmPools {
   activate: boolean;
   debug: boolean;
   pools: RegisteredPool[];
+  logger: Logger;
 
   /**
    * Manages a list of rmPool instances.
@@ -21,6 +22,7 @@ class rmPools {
     this.config = config;
     this.activate = this.config.activate ?? true;
     this.debug = this.config.debug || false;
+    this.logger = this.config.logger || defaultLogger;
 
     this.pools = [];
   }
@@ -210,7 +212,7 @@ class rmPools {
    * Internal function to activate a pool
    */
   async activatePool(pool: RegisteredPool): Promise<void> {
-    pool.rmPool = new rmPool(pool, this.debug);
+    pool.rmPool = new rmPool(pool, this.debug, this.logger);
     await pool.rmPool.init();
     pool.active = true;
     this.log(`Pool ${pool.id} activated`, 'info');
@@ -222,7 +224,7 @@ class rmPools {
    */
   log(message: string = '', type: string = 'debug'): void {
     if (type !== 'debug' || this.debug) {
-      logger.log(type, `${message}`, { service: 'rmPools' });
+      this.logger.log(type, `${message}`, { service: 'rmPools' });
     }
   }
 }

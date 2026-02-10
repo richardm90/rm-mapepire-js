@@ -1,8 +1,8 @@
 import { EventEmitter } from 'events';
 import rmPoolConnection from './rmPoolConnection';
-import { PoolConfig, InitialConnections, IncrementConnections, JDBCOptions, QueryOptions } from './types';
+import { PoolConfig, InitialConnections, IncrementConnections, JDBCOptions, QueryOptions, Logger } from './types';
 import { DaemonServer } from '@ibm/mapepire-js';
-import logger from './logger';
+import defaultLogger from './logger';
 
 class rmPool extends EventEmitter {
   connections: rmPoolConnection[];
@@ -17,6 +17,7 @@ class rmPool extends EventEmitter {
   initCommands: any[];
   healthCheckOnAttach: boolean;
   debug: boolean;
+  logger: Logger;
 
   /**
    * Auto-incrementing counter for assigning stable connection IDs.
@@ -41,7 +42,7 @@ class rmPool extends EventEmitter {
    * @param {boolean} debug - Boolean, display verbose output from the application to the console.
    * @constructor
    */
-  constructor(config: { id: string; config?: PoolConfig }, debug: boolean = false) {
+  constructor(config: { id: string; config?: PoolConfig }, debug: boolean = false, logger?: Logger) {
     super();
     this.connections = [];
 
@@ -68,6 +69,7 @@ class rmPool extends EventEmitter {
     this.initCommands = opts.initCommands || [];
     this.healthCheckOnAttach = opts.healthCheck?.onAttach ?? true;
     this.debug = debug || false;
+    this.logger = logger || opts.logger || defaultLogger;
     this.attachQueue = Promise.resolve();
     this.nextConnectionId = 0;
   }
@@ -89,7 +91,7 @@ class rmPool extends EventEmitter {
    * Assumes the database of the pool when establishing the connection.
    */
   async createConnection(expiry?: number | null): Promise<rmPoolConnection> {
-    const conn = new rmPoolConnection(this.config, this.debug);
+    const conn = new rmPoolConnection(this.config, this.debug, this.logger);
 
     this.connections.push(conn);
     const poolIndex = ++this.nextConnectionId;
@@ -425,7 +427,7 @@ class rmPool extends EventEmitter {
    */
   log(message: string = '', type: string = 'debug'): void {
     if (type !== 'debug' || this.debug) {
-      logger.log(type, `Pool: ${this.id} - ${message}`, { service: 'rmPool' });
+      this.logger.log(type, `Pool: ${this.id} - ${message}`, { service: 'rmPool' });
     }
   }
 }

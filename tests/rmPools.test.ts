@@ -264,6 +264,65 @@ describe('rmPools', () => {
     });
   });
 
+  describe('logger injection', () => {
+    it('should use custom logger when provided', async () => {
+      const customLogger = { log: jest.fn() };
+      const pools = new rmPools({
+        activate: true,
+        debug: true,
+        logger: customLogger,
+        pools: [mockPoolConfig],
+      });
+
+      await pools.init();
+
+      expect(customLogger.log).toHaveBeenCalled();
+      expect(customLogger.log.mock.calls.some(
+        (call: any[]) => call[2]?.service === 'rmPools'
+      )).toBe(true);
+    });
+
+    it('should pass custom logger down to rmPool', async () => {
+      const customLogger = { log: jest.fn() };
+      const pools = new rmPools({
+        activate: true,
+        debug: true,
+        logger: customLogger,
+        pools: [mockPoolConfig],
+      });
+
+      await pools.init();
+
+      // rmPool should have logged via the custom logger
+      expect(customLogger.log.mock.calls.some(
+        (call: any[]) => call[2]?.service === 'rmPool'
+      )).toBe(true);
+    });
+
+    it('should pass custom logger down to rmPoolConnection', async () => {
+      const customLogger = { log: jest.fn() };
+      const pools = new rmPools({
+        activate: true,
+        debug: true,
+        logger: customLogger,
+        pools: [mockPoolConfig],
+      });
+
+      await pools.init();
+
+      // rmPoolConnection should have logged via the custom logger
+      expect(customLogger.log.mock.calls.some(
+        (call: any[]) => call[2]?.service === 'rmPoolConnection'
+      )).toBe(true);
+    });
+
+    it('should use default logger when none provided', () => {
+      const pools = new rmPools({ activate: false });
+      // Should not throw — uses built-in console logger
+      expect(pools.logger).toBeDefined();
+    });
+  });
+
   describe('connectionDiag', () => {
     it('should log connection diagnostics', async () => {
       const pools = new rmPools({ activate: true, debug: true });

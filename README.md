@@ -106,6 +106,52 @@ await pool.detach(connection);
 - `initCommands`: Array of commands to execute when each connection is initialized. Each entry is an object with `command` (string) and optional `type` (`'cl'` or `'sql'`, defaults to `'cl'`). CL commands are executed via `QCMDEXC`; SQL commands are executed directly.
 - `healthCheck`: Health check settings
   - `onAttach`: Verify connections are alive before returning from `attach()` by executing a lightweight query (`VALUES 1`). Unhealthy connections are automatically retired and replaced. (default: `true`). Set to `false` to disable.
+- `logger`: Custom logger object (per-pool override, see Logger below)
+
+#### Pools Options
+
+- `activate`: Auto-activate pools on registration (default: true)
+- `debug`: Enable debug logging (default: false)
+- `pools`: Array of pool configurations
+- `logger`: Custom logger object implementing the `Logger` interface. Flows down to all pools and connections. Defaults to a built-in console logger.
+
+#### Logger
+
+All classes accept an optional `logger` that implements the `Logger` interface:
+
+```typescript
+interface Logger {
+  log(level: string, message: string, meta?: any): void;
+}
+```
+
+The logger flows down from `rmPools` → `rmPool` → `rmPoolConnection` → `rmConnection`. You can set it at the top level or per-pool:
+
+```typescript
+import { rmPools } from 'rm-mapepire-js';
+
+// Custom logger (e.g. winston, pino, or any object with a log method)
+const myLogger = {
+  log(level, message, meta) {
+    // Send to your logging infrastructure
+    console.log(`[${level}] ${message}`, meta);
+  }
+};
+
+const pools = new rmPools({
+  logger: myLogger,  // All pools and connections use this logger
+  pools: [{ id: 'myPool', PoolOptions: { creds: { ... } } }]
+});
+```
+
+For standalone connections (without pools):
+
+```typescript
+import { rmConnection } from 'rm-mapepire-js';
+
+const conn = new rmConnection(creds, jdbcOptions, [], false, myLogger);
+await conn.init();
+```
 
 ## API Reference
 

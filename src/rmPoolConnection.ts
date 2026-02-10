@@ -1,7 +1,7 @@
 import rmConnection from './rmConnection';
 import { JDBCOptions, DaemonServer, States } from '@ibm/mapepire-js';
-import { PoolConfig, InitCommand, QueryOptions } from './types';
-import logger from './logger';
+import { PoolConfig, InitCommand, QueryOptions, Logger } from './types';
+import defaultLogger from './logger';
 
 /**
  * Uses and Extends the Connection class implemented in idb-pconnector.
@@ -18,13 +18,14 @@ class rmPoolConnection {
   connection!: rmConnection;
   jobName?: string;
   expiry?: number | null;
+  logger: Logger;
 
   /**
    * @description
    * Instantiates a new instance of a rmPoolConnection class.
    * @param {object} pool - Pool configuration.
    */
-  constructor(pool: PoolConfig, debug: boolean = false) {
+  constructor(pool: PoolConfig, debug: boolean = false, logger?: Logger) {
     this.poolId = pool.id;
     this.poolIndex = null;
     this.creds = pool.PoolOptions.creds;
@@ -34,6 +35,7 @@ class rmPoolConnection {
     this.available = false;
     this.expiryTimerId = null;
     this.debug = debug || false;
+    this.logger = logger || pool.PoolOptions?.logger || defaultLogger;
   }
 
   /**
@@ -42,7 +44,7 @@ class rmPoolConnection {
   async init(poolIndex: number): Promise<void> {
     this.poolIndex = poolIndex;
 
-    this.connection = new rmConnection(this.creds, this.JDBCOptions, this.initCommands, this.debug);
+    this.connection = new rmConnection(this.creds, this.JDBCOptions, this.initCommands, this.debug, this.logger);
 
     await this.connection.init(true);
 
@@ -168,7 +170,7 @@ class rmPoolConnection {
    */
   log(message: string = '', type: string = 'debug'): void {
     if (type !== 'debug' || this.debug) {
-      logger.log(type, `Pool: ${this.poolId} Connection: ${this.poolIndex} - ${message}`, { service: 'rmPoolConnection' });
+      this.logger.log(type, `Pool: ${this.poolId} Connection: ${this.poolIndex} - ${message}`, { service: 'rmPoolConnection' });
     }
   }
 }

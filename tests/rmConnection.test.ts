@@ -219,6 +219,24 @@ describe('rmConnection', () => {
     });
   });
 
+  describe('logger injection', () => {
+    it('should use custom logger when provided', async () => {
+      const customLogger = { log: jest.fn() };
+      const conn = new rmConnection(mockCreds, mockJDBCOptions, [], true, customLogger);
+      await conn.init();
+
+      expect(customLogger.log).toHaveBeenCalled();
+      expect(customLogger.log.mock.calls.some(
+        (call: any[]) => call[2]?.service === 'rmConnection'
+      )).toBe(true);
+    });
+
+    it('should use default logger when none provided', () => {
+      const conn = new rmConnection(mockCreds, mockJDBCOptions);
+      expect(conn.logger).toBeDefined();
+    });
+  });
+
   describe('getInfo', () => {
     it('should return connection information', async () => {
       const conn = new rmConnection(mockCreds, mockJDBCOptions);

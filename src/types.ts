@@ -31,6 +31,7 @@ export interface PoolOptions {
   JDBCOptions?: JDBCOptions;
   initCommands?: InitCommand[];
   healthCheck?: HealthCheckConfig;
+  logger?: Logger;
 }
 
 export interface PoolConfig {
@@ -49,6 +50,7 @@ export interface PoolsConfig {
   activate?: boolean;
   debug?: boolean;
   pools?: PoolConfig[];
+  logger?: Logger;
 }
 
 export interface QueryOptions {
