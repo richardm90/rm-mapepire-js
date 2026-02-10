@@ -29,13 +29,21 @@ The base `@ibm/mapepire-js` package provides a WebSocket-based DB2 client for IB
 ## Installation
 
 ```bash
-# TODO: Make available publicly
+npm install rm-mapepire-js
+```
+
+### Prerequisites
+
+This package requires a Mapepire server running on your IBM i. See [@ibm/mapepire-js](https://www.npmjs.com/package/@ibm/mapepire-js) for details.
+
+### Install from GitHub (alternative)
+
+```bash
+# Latest stable release
+npm install github:richardm90/rm-mapepire-js#main
 
 # Development branch
-npm install git+ssh://git@bitbucket.org/richardm90/rm-mapepire-js.git#dev
-
-# Stable/production branch
-npm install git+ssh://git@bitbucket.org/richardm90/rm-mapepire-js.git#main
+npm install github:richardm90/rm-mapepire-js#dev
 ```
 
 ## Usage
@@ -307,24 +315,37 @@ ISC
 
 Richard Moulton
 
-## Updating to the latest version:
+## Updating to the latest version
 
 ```bash
-# In your rm-mapepire-js directory
 npm update rm-mapepire-js
 ```
 
-## Workflow for Updates
+## Releasing
 
-When you make changes to your package:
+This project uses [npm version](https://docs.npmjs.com/cli/v10/commands/npm-version) for versioning. Versions follow [semver](https://semver.org/).
 
-1. Make your code changes
-1. Update version in package.json
-1. Run tests: `npm test`
-1. Build: `npm run build`
-1. Commit and push
-1. Tag the release: `git tag v1.0.1 && git push origin v1.0.1`
-1. Update in consuming projects: `npm update rm-mapepire-js`
+```bash
+# 1. Merge dev into main
+git checkout main
+git merge dev
+
+# 2. Bump version (choose one)
+npm version patch   # 0.1.0 → 0.1.1 (bug fixes)
+npm version minor   # 0.1.0 → 0.2.0 (new features)
+npm version major   # 0.1.0 → 1.0.0 (breaking changes)
+
+# 3. Push with tags
+git push origin main --follow-tags
+
+# 4. Publish to npm
+npm publish
+
+# 5. Return to dev
+git checkout dev
+git merge main
+git push origin dev
+```
 
 ## Use `npm link` for Active Development
 
@@ -351,7 +372,7 @@ npm unlink rm-mapepire-js
 npm unlink
 
 # 3. In your consuming project - reinstall normally
-npm install git+ssh://git@bitbucket.org/your-username/rm-mapepire-js.git#dev
+npm install rm-mapepire-js
 ```
 
 ```bash

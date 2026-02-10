@@ -31,6 +31,14 @@
   ],
   "author": "Richard Moulton",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/richardm90/rm-mapepire-js.git"
+  },
+  "bugs": {
+    "url": "https://github.com/richardm90/rm-mapepire-js/issues"
+  },
+  "homepage": "https://github.com/richardm90/rm-mapepire-js#readme",
   "dependencies": {
     "@ibm/mapepire-js": "^0.6.0"
   },

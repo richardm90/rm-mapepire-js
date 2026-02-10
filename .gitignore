@@ -1,6 +1,4 @@
-dist
-node_modules
-.env# Dependencies
+# Dependencies
 node_modules/
 
 # Build output
