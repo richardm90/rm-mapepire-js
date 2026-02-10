@@ -249,6 +249,70 @@ describe('rmPool', () => {
     });
   });
 
+  describe('health check on attach', () => {
+    it('should retire unhealthy connection and return next healthy one', async () => {
+      const pool = new rmPool(mockConfig);
+      await pool.init();
+
+      // Make first connection fail health check
+      const conn1 = pool.connections[0];
+      jest.spyOn(conn1, 'isHealthy').mockResolvedValue(false);
+
+      const attached = await pool.attach();
+
+      // Should have retired conn1 and returned conn2
+      expect(attached).toBe(pool.connections[0]);
+      expect(attached.poolIndex).toBe(2);
+      expect(pool.connections.length).toBe(1);
+    });
+
+    it('should create new connection if all existing fail health check', async () => {
+      const pool = new rmPool(mockConfig);
+      await pool.init();
+
+      // Make both initial connections fail health check
+      jest.spyOn(pool.connections[0], 'isHealthy').mockResolvedValue(false);
+      jest.spyOn(pool.connections[1], 'isHealthy').mockResolvedValue(false);
+
+      const attached = await pool.attach();
+
+      // Both original connections retired, a new one was created
+      expect(attached.poolIndex).toBe(3);
+      expect(pool.connections.length).toBe(1);
+    });
+
+    it('should skip health check when disabled', async () => {
+      const configNoHealthCheck = {
+        ...mockConfig,
+        config: {
+          ...mockConfig.config,
+          PoolOptions: {
+            ...mockConfig.config.PoolOptions,
+            healthCheck: { onAttach: false },
+          },
+        },
+      };
+
+      const pool = new rmPool(configNoHealthCheck);
+      await pool.init();
+
+      // Make connection "unhealthy" — but health check is disabled
+      const spy = jest.spyOn(pool.connections[0], 'isHealthy').mockResolvedValue(false);
+
+      const attached = await pool.attach();
+
+      // Should return connection without checking health
+      expect(spy).not.toHaveBeenCalled();
+      expect(attached.poolIndex).toBe(1);
+      expect(pool.connections.length).toBe(2);
+    });
+
+    it('should default to health check enabled', () => {
+      const pool = new rmPool(mockConfig);
+      expect(pool.healthCheckOnAttach).toBe(true);
+    });
+  });
+
   describe('expiry timers', () => {
     beforeEach(() => {
       jest.useFakeTimers();

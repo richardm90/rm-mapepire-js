@@ -14,6 +14,7 @@ class rmPool {
   dbConnectorDebug: boolean;
   JDBCOptions: JDBCOptions;
   initCommands: any[];
+  healthCheckOnAttach: boolean;
   debug: boolean;
 
   /**
@@ -63,6 +64,7 @@ class rmPool {
     this.dbConnectorDebug = opts.dbConnectorDebug || false;
     this.JDBCOptions = opts.JDBCOptions || {};
     this.initCommands = opts.initCommands || [];
+    this.healthCheckOnAttach = opts.healthCheck?.onAttach ?? true;
     this.debug = debug || false;
     this.attachQueue = Promise.resolve();
     this.nextConnectionId = 0;
@@ -238,16 +240,31 @@ class rmPool {
 
     this.log('Finding available connection');
     while (!validConnection) {
+      let healthCheckFailed = false;
       for (i = 0; i < this.connections.length; i += 1) {
         if (this.connections[i].isAvailable()) {
           this.cancelExpiryTimer(this.connections[i]);
           this.connections[i].setAvailable(false);
-          validConnection = true;
 
+          // Health check: verify the connection is still alive
+          if (this.healthCheckOnAttach) {
+            const healthy = await this.connections[i].isHealthy();
+            if (!healthy) {
+              this.log(`Connection ${this.connections[i].poolIndex} failed health check, retiring`);
+              await this.retire(this.connections[i]);
+              healthCheckFailed = true;
+              break; // Restart search — splice shifted array indices
+            } else {
+              this.log(`Connection ${this.connections[i].poolIndex} is healthy`);
+            }
+          }
+
+          validConnection = true;
           this.log(`Connection ${this.connections[i].poolIndex} found`);
           return this.connections[i];
         }
       }
+      if (healthCheckFailed) continue;
 
       this.log('No available connections found');
 

@@ -215,6 +215,55 @@ describe('rmPools', () => {
     });
   });
 
+  describe('close', () => {
+    it('should close all active pools', async () => {
+      const pools = new rmPools({ activate: true });
+      await pools.register(mockPoolConfig);
+      await pools.register(mockPoolConfig2);
+
+      expect(pools.pools[0].active).toBe(true);
+      expect(pools.pools[1].active).toBe(true);
+
+      const result = await pools.close();
+
+      expect(result).toBe(true);
+      expect(pools.pools[0].active).toBe(false);
+      expect(pools.pools[1].active).toBe(false);
+    });
+
+    it('should retire all connections in each pool', async () => {
+      const pools = new rmPools({ activate: true });
+      await pools.register(mockPoolConfig);
+
+      const pool = pools.pools[0].rmPool!;
+      expect(pool.connections.length).toBe(2);
+
+      await pools.close();
+
+      expect(pool.connections.length).toBe(0);
+    });
+
+    it('should skip inactive pools', async () => {
+      const pools = new rmPools({ activate: false });
+      await pools.register(mockPoolConfig);
+
+      expect(pools.pools[0].active).toBe(false);
+
+      const result = await pools.close();
+
+      expect(result).toBe(true);
+      expect(pools.pools[0].active).toBe(false);
+    });
+
+    it('should succeed when no pools are registered', async () => {
+      const pools = new rmPools();
+
+      const result = await pools.close();
+
+      expect(result).toBe(true);
+    });
+  });
+
   describe('connectionDiag', () => {
     it('should log connection diagnostics', async () => {
       const pools = new rmPools({ activate: true, debug: true });

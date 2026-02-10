@@ -103,6 +103,21 @@ class rmPoolConnection {
   }
 
   /**
+   * Checks whether the underlying connection is still alive by executing
+   * a lightweight query. Returns false if the query fails for any reason.
+   * @returns {boolean} true if the connection is healthy.
+   */
+  async isHealthy(): Promise<boolean> {
+    try {
+      await this.connection.execute('VALUES 1');
+      return true;
+    } catch (error) {
+      this.log(`Health check failed: ${error}`, 'error');
+      return false;
+    }
+  }
+
+  /**
    * @returns {boolean} true if the connection is available, false if unavailable.
    */
   isAvailable(): boolean {

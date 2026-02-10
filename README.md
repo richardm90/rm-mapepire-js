@@ -104,6 +104,8 @@ await pool.detach(connection);
 - `dbConnectorDebug`: Enable debug logging (default: false)
 - `JDBCOptions`: JDBC options object - a standard Mapepire JDBCOptions object
 - `initCommands`: Array of commands to execute when each connection is initialized. Each entry is an object with `command` (string) and optional `type` (`'cl'` or `'sql'`, defaults to `'cl'`). CL commands are executed via `QCMDEXC`; SQL commands are executed directly.
+- `healthCheck`: Health check settings
+  - `onAttach`: Verify connections are alive before returning from `attach()` by executing a lightweight query (`VALUES 1`). Unhealthy connections are automatically retired and replaced. (default: `true`). Set to `false` to disable.
 
 ## API Reference
 
@@ -117,6 +119,7 @@ Main class for managing multiple connection pools.
 - `register(poolConfig)`: Register a new pool configuration
 - `get(poolId?)`: Get a pool by ID (returns first pool if ID not provided)
 - `attach(pool)`: Attach a connection from the pool
+- `close()`: Close all active pools and mark them inactive
 - `connectionDiag(poolId, connection, sql)`: Log connection diagnostics
 - `getInfo()`: Get information about all pools for debugging
 - `printInfo()`: Print all pools info to console
@@ -151,6 +154,7 @@ Represents a single pooled database connection.
 - `detach()`: Mark the connection as available and return it
 - `retire()`: Close and retire the connection
 - `isAvailable()`: Check if the connection is available
+- `isHealthy()`: Check if the underlying connection is still alive (executes `VALUES 1`)
 - `getStatus()`: Get the current status of the underlying job
 - `getInfo()`: Get connection information for debugging
 - `printInfo()`: Print connection info to console

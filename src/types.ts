@@ -17,6 +17,10 @@ export interface IncrementConnections {
   expiry?: number | null;
 }
 
+export interface HealthCheckConfig {
+  onAttach?: boolean;  // Verify connection is alive before returning from attach() (default: true)
+}
+
 export interface PoolOptions {
   creds: DaemonServer;
   maxSize?: number;
@@ -25,6 +29,7 @@ export interface PoolOptions {
   dbConnectorDebug?: boolean;
   JDBCOptions?: JDBCOptions;
   initCommands?: InitCommand[];
+  healthCheck?: HealthCheckConfig;
 }
 
 export interface PoolConfig {

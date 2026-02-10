@@ -190,6 +190,23 @@ class rmPools {
   }
 
   /**
+   * Closes all active pools and marks them as inactive.
+   * Each pool's connections are retired (closed on the server).
+   * @returns {boolean} - true if all pools were closed successfully.
+   */
+  async close(): Promise<boolean> {
+    for (let i = 0; i < this.pools.length; i++) {
+      const pool = this.pools[i];
+      if (pool.active && pool.rmPool) {
+        await pool.rmPool.close();
+        pool.active = false;
+        this.log(`Pool ${pool.id} closed`, 'info');
+      }
+    }
+    return true;
+  }
+
+  /**
    * Internal function to activate a pool
    */
   async activatePool(pool: RegisteredPool): Promise<void> {
