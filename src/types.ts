@@ -1,5 +1,5 @@
 import { JDBCOptions, DaemonServer } from '@ibm/mapepire-js';
-import type rmPool from './rmPool';
+import type RmPool from './rmPool';
 
 export { JDBCOptions, DaemonServer };
 
@@ -43,7 +43,7 @@ export interface RegisteredPool {
   id: string;
   config: PoolConfig;
   active: boolean;
-  rmPool?: rmPool;
+  rmPool?: RmPool;
 }
 
 export interface PoolsConfig {

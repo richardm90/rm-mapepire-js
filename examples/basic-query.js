@@ -4,12 +4,12 @@
  * Demonstrates how to set up a connection pool and execute a simple SQL query.
  */
 
-const { rmPools } = require('rm-mapepire-js');
-// const { rmPools } = require('../dist');
+const { RmPools } = require('rm-mapepire-js');
+// const { RmPools } = require('../dist');
 
 async function main() {
   // Create a pools manager with a single pool
-  const pools = new rmPools({
+  const pools = new RmPools({
     pools: [
       {
         id: 'mydb',

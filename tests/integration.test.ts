@@ -1,11 +1,11 @@
 import './setup';
-import { rmPools } from '../src/rmPools';
+import { RmPools } from '../src/rmPools';
 
 describe('Integration Tests', () => {
   describe('Full workflow', () => {
     it('should manage multiple pools and connections', async () => {
       // Create pools manager
-      const pools = new rmPools({
+      const pools = new RmPools({
         debug: false,
         activate: true,
         pools: [
@@ -81,7 +81,7 @@ describe('Integration Tests', () => {
     });
 
     it('should handle pool exhaustion gracefully', async () => {
-      const pools = new rmPools({
+      const pools = new RmPools({
         activate: true,
         pools: [
           {
@@ -125,7 +125,7 @@ describe('Integration Tests', () => {
     });
 
     it('should retire connections properly', async () => {
-      const pools = new rmPools({
+      const pools = new RmPools({
         activate: true,
         pools: [
           {
@@ -162,7 +162,7 @@ describe('Integration Tests', () => {
     });
 
     it('should execute queries directly on the pool', async () => {
-      const pools = new rmPools({
+      const pools = new RmPools({
         activate: true,
         pools: [
           {
@@ -196,7 +196,7 @@ describe('Integration Tests', () => {
     });
 
     it('should handle pool query with options', async () => {
-      const pools = new rmPools({
+      const pools = new RmPools({
         activate: true,
         pools: [
           {
@@ -229,7 +229,7 @@ describe('Integration Tests', () => {
     });
 
     it('should detach connection even if query fails', async () => {
-      const pools = new rmPools({
+      const pools = new RmPools({
         activate: true,
         pools: [
           {

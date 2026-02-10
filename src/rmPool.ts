@@ -1,11 +1,11 @@
 import { EventEmitter } from 'events';
-import rmPoolConnection from './rmPoolConnection';
+import RmPoolConnection from './rmPoolConnection';
 import { PoolConfig, InitialConnections, IncrementConnections, JDBCOptions, QueryOptions, Logger } from './types';
 import { DaemonServer } from '@ibm/mapepire-js';
 import defaultLogger from './logger';
 
-class rmPool extends EventEmitter {
-  connections: rmPoolConnection[];
+class RmPool extends EventEmitter {
+  connections: RmPoolConnection[];
   id: string;
   config: PoolConfig;
   creds: DaemonServer;
@@ -36,9 +36,9 @@ class rmPool extends EventEmitter {
   private attachQueue: Promise<any>;
 
   /**
-   * Manages a list of rmPoolConnection instances.
-   * Constructor to instantiate a new instance of a rmPool class given the `database` and `config`
-   * @param {object} config - rmPool config object.
+   * Manages a list of RmPoolConnection instances.
+   * Constructor to instantiate a new instance of a RmPool class given the `database` and `config`
+   * @param {object} config - RmPool config object.
    * @param {boolean} debug - Boolean, display verbose output from the application to the console.
    * @constructor
    */
@@ -75,7 +75,7 @@ class rmPool extends EventEmitter {
   }
 
   /**
-   * Initializes the rmPool instance.
+   * Initializes the RmPool instance.
    */
   async init(): Promise<void> {
     for (let i = 0; i < this.initialConnections.size!; i += 1) {
@@ -87,11 +87,11 @@ class rmPool extends EventEmitter {
   }
 
   /**
-   * Instantiates a new instance of rmPoolConnection with an `index` and appends it to the pool.
+   * Instantiates a new instance of RmPoolConnection with an `index` and appends it to the pool.
    * Assumes the database of the pool when establishing the connection.
    */
-  async createConnection(expiry?: number | null): Promise<rmPoolConnection> {
-    const conn = new rmPoolConnection(this.config, this.debug, this.logger);
+  async createConnection(expiry?: number | null): Promise<RmPoolConnection> {
+    const conn = new RmPoolConnection(this.config, this.debug, this.logger);
 
     this.connections.push(conn);
     const poolIndex = ++this.nextConnectionId;
@@ -117,7 +117,7 @@ class rmPool extends EventEmitter {
       try {
         await this.detach(this.connections[i]);
       } catch (error) {
-        const reason = new Error('rmPool: Failed to detachAll()');
+        const reason = new Error('RmPool: Failed to detachAll()');
         if (error instanceof Error) {
           reason.stack += `\nCaused By:\n ${error.stack}`;
         }
@@ -140,7 +140,7 @@ class rmPool extends EventEmitter {
         await this.retire(this.connections[0]);
       }
     } catch (error) {
-      const reason = new Error('rmPool: Failed to retireAll()');
+      const reason = new Error('RmPool: Failed to retireAll()');
       if (error instanceof Error) {
         reason.stack += `\nCaused By:\n ${error.stack}`;
       }
@@ -162,7 +162,7 @@ class rmPool extends EventEmitter {
         await this.retire(this.connections[0]);
       }
     } catch (error) {
-      const reason = new Error('rmPool: Failed to close()');
+      const reason = new Error('RmPool: Failed to close()');
       if (error instanceof Error) {
         reason.stack += `\nCaused By:\n ${error.stack}`;
       }
@@ -173,16 +173,16 @@ class rmPool extends EventEmitter {
 
   /**
    * Frees a connection (Returns the connection "Available" back to true)
-   * @param {rmPoolConnection} connection
+   * @param {RmPoolConnection} connection
    * @returns {boolean} - true if detached successfully
    */
-  async detach(connection: rmPoolConnection): Promise<boolean> {
+  async detach(connection: RmPoolConnection): Promise<boolean> {
     const index = connection.poolIndex;
     try {
       await connection.detach();
       this.setExpiryTimer(connection);
     } catch (error) {
-      const reason = new Error('rmPool: Failed to detach()');
+      const reason = new Error('RmPool: Failed to detach()');
       if (error instanceof Error) {
         reason.stack += `\nCaused By:\n ${error.stack}`;
       }
@@ -195,9 +195,9 @@ class rmPool extends EventEmitter {
 
   /**
    * Retires a connection from being used and removes it from the pool
-   * @param {rmPoolConnection} connection
+   * @param {RmPoolConnection} connection
    */
-  async retire(connection: rmPoolConnection): Promise<void> {
+  async retire(connection: RmPoolConnection): Promise<void> {
     const index = connection.poolIndex;
 
     try {
@@ -211,7 +211,7 @@ class rmPool extends EventEmitter {
       }
     } catch (error) {
       console.dir(error, { depth: 5 });
-      const reason = new Error(`rmPool: Failed to retire() Connection #${index}`);
+      const reason = new Error(`RmPool: Failed to retire() Connection #${index}`);
       if (error instanceof Error) {
         reason.stack += `\nCaused By:\n ${error.stack}`;
       }
@@ -225,9 +225,9 @@ class rmPool extends EventEmitter {
    * Finds and returns the first available Connection.
    * Serialized via a promise-chain mutex to prevent concurrent callers
    * from claiming the same connection or creating duplicate connections.
-   * @returns {rmPoolConnection} - one connection from the rmPool.
+   * @returns {RmPoolConnection} - one connection from the RmPool.
    */
-  attach(): Promise<rmPoolConnection> {
+  attach(): Promise<RmPoolConnection> {
     const result = this.attachQueue.then(() => this._attach());
     // Update the queue: whether _attach succeeds or fails, the next
     // caller should be allowed to proceed, so we swallow errors here.
@@ -239,10 +239,10 @@ class rmPool extends EventEmitter {
    * Internal implementation of attach(). Must only be called via
    * the serialized attach() method above.
    */
-  private async _attach(): Promise<rmPoolConnection> {
+  private async _attach(): Promise<RmPoolConnection> {
     const size = this.incrementConnections.size!;
     let validConnection = false;
-    let connection: rmPoolConnection | undefined;
+    let connection: RmPoolConnection | undefined;
     let i: number;
     let increasedPoolSize = false;
 
@@ -301,7 +301,7 @@ class rmPool extends EventEmitter {
       }
     }
 
-    throw new Error('rmPool: Unable to attach a connection');
+    throw new Error('RmPool: Unable to attach a connection');
   }
 
   /**
@@ -324,7 +324,7 @@ class rmPool extends EventEmitter {
   /**
    * Starts the expiry timer for the connection.
    */
-  setExpiryTimer(conn: rmPoolConnection): void {
+  setExpiryTimer(conn: RmPoolConnection): void {
     this.cancelExpiryTimer(conn);
 
     if (conn.expiry && conn.expiry > 0) {
@@ -338,7 +338,7 @@ class rmPool extends EventEmitter {
   /**
    * Cancels the expiry timer for the connection.
    */
-  cancelExpiryTimer(conn: rmPoolConnection): void {
+  cancelExpiryTimer(conn: RmPoolConnection): void {
     if (conn.expiryTimerId) {
       clearTimeout(conn.expiryTimerId);
       conn.expiryTimerId = null;
@@ -350,7 +350,7 @@ class rmPool extends EventEmitter {
   /**
    * Flags the connection as expired and retires it.
    */
-  async setExpired(conn: rmPoolConnection): Promise<void> {
+  async setExpired(conn: RmPoolConnection): Promise<void> {
     conn.setAvailable(false);
     this.log(`Connection ${conn.poolIndex} expired`);
     this.emit('connection:expired', { poolId: this.id, poolIndex: conn.poolIndex });
@@ -427,9 +427,9 @@ class rmPool extends EventEmitter {
    */
   log(message: string = '', type: string = 'debug'): void {
     if (type !== 'debug' || this.debug) {
-      this.logger.log(type, `Pool: ${this.id} - ${message}`, { service: 'rmPool' });
+      this.logger.log(type, `Pool: ${this.id} - ${message}`, { service: 'RmPool' });
     }
   }
 }
 
-export default rmPool;
+export default RmPool;

@@ -20,7 +20,7 @@ npm install git+ssh://git@bitbucket.org/richardm90/rm-mapepire-js.git#main
 ### Basic Setup
 
 ```typescript
-import { rmPools } from 'rm-mapepire-js';
+import { RmPools } from 'rm-mapepire-js';
 
 const poolsConfig = {
   debug: true,
@@ -48,7 +48,7 @@ const poolsConfig = {
   ]
 };
 
-const pools = new rmPools(poolsConfig);
+const pools = new RmPools(poolsConfig);
 await pools.init();
 ```
 
@@ -125,10 +125,10 @@ interface Logger {
 }
 ```
 
-The logger flows down from `rmPools` → `rmPool` → `rmPoolConnection` → `rmConnection`. You can set it at the top level or per-pool:
+The logger flows down from `RmPools` → `RmPool` → `RmPoolConnection` → `RmConnection`. You can set it at the top level or per-pool:
 
 ```typescript
-import { rmPools } from 'rm-mapepire-js';
+import { RmPools } from 'rm-mapepire-js';
 
 // Custom logger (e.g. winston, pino, or any object with a log method)
 const myLogger = {
@@ -138,7 +138,7 @@ const myLogger = {
   }
 };
 
-const pools = new rmPools({
+const pools = new RmPools({
   logger: myLogger,  // All pools and connections use this logger
   pools: [{ id: 'myPool', PoolOptions: { creds: { ... } } }]
 });
@@ -147,15 +147,15 @@ const pools = new rmPools({
 For standalone connections (without pools):
 
 ```typescript
-import { rmConnection } from 'rm-mapepire-js';
+import { RmConnection } from 'rm-mapepire-js';
 
-const conn = new rmConnection(creds, jdbcOptions, [], false, myLogger);
+const conn = new RmConnection(creds, jdbcOptions, [], false, myLogger);
 await conn.init();
 ```
 
 ## API Reference
 
-### rmPools
+### RmPools
 
 Main class for managing multiple connection pools.
 
@@ -171,7 +171,7 @@ Main class for managing multiple connection pools.
 - `printInfo()`: Print all pools info to console
 - `printStats()`: Print summary statistics for all pools
 
-### rmPool
+### RmPool
 
 Manages a pool of database connections. Extends `EventEmitter`.
 
@@ -211,7 +211,7 @@ pool.on('pool:exhausted', ({ poolId, maxSize }) => {
 });
 ```
 
-### rmPoolConnection
+### RmPoolConnection
 
 Represents a single pooled database connection.
 
@@ -226,7 +226,7 @@ Represents a single pooled database connection.
 - `getInfo()`: Get connection information for debugging
 - `printInfo()`: Print connection info to console
 
-### rmConnection
+### RmConnection
 
 Represents a standalone database connection (not pooled).
 

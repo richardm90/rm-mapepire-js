@@ -1,11 +1,11 @@
-import rmPool from './rmPool';
-import rmPoolConnection from './rmPoolConnection';
+import RmPool from './rmPool';
+import RmPoolConnection from './rmPoolConnection';
 import { PoolsConfig, PoolConfig, RegisteredPool, Logger } from './types';
 import defaultLogger from './logger';
 
 const MAX_POOLS = 8;
 
-class rmPools {
+class RmPools {
   config: PoolsConfig;
   activate: boolean;
   debug: boolean;
@@ -13,8 +13,8 @@ class rmPools {
   logger: Logger;
 
   /**
-   * Manages a list of rmPool instances.
-   * Constructor to instantiate a new instance of a rmPools class
+   * Manages a list of RmPool instances.
+   * Constructor to instantiate a new instance of a RmPools class
    * @param {object} config - Object includes `debug`.
    * @constructor
    */
@@ -28,7 +28,7 @@ class rmPools {
   }
 
   /**
-   * Initializes the rmPools instance.
+   * Initializes the RmPools instance.
    */
   async init(): Promise<void> {
     if (this.config.pools) {
@@ -39,7 +39,7 @@ class rmPools {
   }
 
   /**
-   * Registers a rmPool configuration.
+   * Registers a RmPool configuration.
    * @param {object} pool - The pool configuration to register.
    * @returns {boolean} - Indicates whether the pool was registered.
    */
@@ -75,13 +75,13 @@ class rmPools {
   }
 
   /**
-   * Gets and returns the rmPool instance for the given poolId.
-   * - If the poolId is not passed then the first rmPool instance is returned.
+   * Gets and returns the RmPool instance for the given poolId.
+   * - If the poolId is not passed then the first RmPool instance is returned.
    * - if the found pool has not been activated then it will be activated.
    * @param {string} poolId - Pool identifier to find and return
-   * @returns {rmPool} - rmPool instance.
+   * @returns {RmPool} - RmPool instance.
    */
-  async get(poolId?: string): Promise<rmPool | null> {
+  async get(poolId?: string): Promise<RmPool | null> {
     let pool: RegisteredPool;
     let i: number;
 
@@ -109,7 +109,7 @@ class rmPools {
 
   /**
    * Sanitize poolId, this method allows easier handling of a null poolId
-   * - If the poolId is not passed then the first rmPool instance is returned.
+   * - If the poolId is not passed then the first RmPool instance is returned.
    * @param {string} poolId - Pool identifier
    * @returns {string} poolId - Sanitized pool identifier
    */
@@ -121,11 +121,11 @@ class rmPools {
   }
 
   /**
-   * Simple wrapper around rmPool.attach() allowing additional debugging info.
-   * @param {rmPool} pool - rmPool instance
-   * @returns {rmPoolConnection} - rmPool connection instance.
+   * Simple wrapper around RmPool.attach() allowing additional debugging info.
+   * @param {RmPool} pool - RmPool instance
+   * @returns {RmPoolConnection} - RmPool connection instance.
    */
-  async attach(pool: rmPool): Promise<rmPoolConnection> {
+  async attach(pool: RmPool): Promise<RmPoolConnection> {
     const rmPoolConnectionInstance = await pool.attach();
     return rmPoolConnectionInstance;
   }
@@ -133,10 +133,10 @@ class rmPools {
   /**
    * Simple wrapper for connection diagnostics.
    * @param {string} poolId - Pool identifier
-   * @param {rmPoolConnection} dbconnection - rmPoolConnection instance
+   * @param {RmPoolConnection} dbconnection - RmPoolConnection instance
    * @param {string} sql - SQL statement
    */
-  async connectionDiag(poolId: string | undefined, dbconnection: rmPoolConnection, sql: string): Promise<void> {
+  async connectionDiag(poolId: string | undefined, dbconnection: RmPoolConnection, sql: string): Promise<void> {
     this.log(`connectionDiag(): Data source=${this.sanitizePoolId(poolId)} Connection index=${dbconnection.poolIndex} Connection job name=${dbconnection.jobName} Sql=${sql}`);
   }
 
@@ -212,7 +212,7 @@ class rmPools {
    * Internal function to activate a pool
    */
   async activatePool(pool: RegisteredPool): Promise<void> {
-    pool.rmPool = new rmPool(pool, this.debug, this.logger);
+    pool.rmPool = new RmPool(pool, this.debug, this.logger);
     await pool.rmPool.init();
     pool.active = true;
     this.log(`Pool ${pool.id} activated`, 'info');
@@ -229,4 +229,4 @@ class rmPools {
   }
 }
 
-export { rmPools };
+export { RmPools };

@@ -10,10 +10,10 @@
  * - retireAll: permanently closes all connections in a pool
  */
 
-const { rmPools } = require('rm-mapepire-js');
+const { RmPools } = require('rm-mapepire-js');
 
 async function main() {
-  const pools = new rmPools({
+  const pools = new RmPools({
     pools: [
       {
         id: 'mydb',

@@ -1,4 +1,4 @@
-import rmConnection from './rmConnection';
+import RmConnection from './rmConnection';
 import { JDBCOptions, DaemonServer, States } from '@ibm/mapepire-js';
 import { PoolConfig, InitCommand, QueryOptions, Logger } from './types';
 import defaultLogger from './logger';
@@ -6,7 +6,7 @@ import defaultLogger from './logger';
 /**
  * Uses and Extends the Connection class implemented in idb-pconnector.
  */
-class rmPoolConnection {
+class RmPoolConnection {
   poolId: string;
   poolIndex: number | null;
   creds: DaemonServer;
@@ -15,14 +15,14 @@ class rmPoolConnection {
   initCommands: InitCommand[];
   available: boolean;
   expiryTimerId: NodeJS.Timeout | null;
-  connection!: rmConnection;
+  connection!: RmConnection;
   jobName?: string;
   expiry?: number | null;
   logger: Logger;
 
   /**
    * @description
-   * Instantiates a new instance of a rmPoolConnection class.
+   * Instantiates a new instance of a RmPoolConnection class.
    * @param {object} pool - Pool configuration.
    */
   constructor(pool: PoolConfig, debug: boolean = false, logger?: Logger) {
@@ -39,12 +39,12 @@ class rmPoolConnection {
   }
 
   /**
-   * Initializes an instance of rmPoolConnection.
+   * Initializes an instance of RmPoolConnection.
    */
   async init(poolIndex: number): Promise<void> {
     this.poolIndex = poolIndex;
 
-    this.connection = new rmConnection(this.creds, this.JDBCOptions, this.initCommands, this.debug, this.logger);
+    this.connection = new RmConnection(this.creds, this.JDBCOptions, this.initCommands, this.debug, this.logger);
 
     await this.connection.init(true);
 
@@ -72,11 +72,11 @@ class rmPoolConnection {
    * Close the connection, making it available.
    * @returns {object} The detached connection.
    */
-  async detach(): Promise<rmPoolConnection> {
+  async detach(): Promise<RmPoolConnection> {
     try {
       this.setAvailable(true);
     } catch (error) {
-      const reason = new Error(`rmPoolConnection: failed to detach.`);
+      const reason = new Error(`RmPoolConnection: failed to detach.`);
       if (error instanceof Error) {
         reason.stack += `\nCaused By:\n ${error.stack}`;
       }
@@ -94,7 +94,7 @@ class rmPoolConnection {
     try {
       await this.connection.close();
     } catch (error) {
-      const reason = new Error(`rmPoolConnection: failed to retire.`);
+      const reason = new Error(`RmPoolConnection: failed to retire.`);
       if (error instanceof Error) {
         reason.stack += `\nCaused By:\n ${error.stack}`;
       }
@@ -170,9 +170,9 @@ class rmPoolConnection {
    */
   log(message: string = '', type: string = 'debug'): void {
     if (type !== 'debug' || this.debug) {
-      this.logger.log(type, `Pool: ${this.poolId} Connection: ${this.poolIndex} - ${message}`, { service: 'rmPoolConnection' });
+      this.logger.log(type, `Pool: ${this.poolId} Connection: ${this.poolIndex} - ${message}`, { service: 'RmPoolConnection' });
     }
   }
 }
 
-export default rmPoolConnection;
+export default RmPoolConnection;

@@ -5,9 +5,9 @@ This guide shows you how to use the built-in debug and monitoring features in `r
 ## Quick Start
 
 ```typescript
-import { rmPools } from 'rm-mapepire-js';
+import { RmPools } from 'rm-mapepire-js';
 
-const pools = new rmPools({
+const pools = new RmPools({
   debug: true,  // Enable debug logging
   pools: [{
     id: 'myPool',
@@ -30,7 +30,7 @@ pools.printInfo();
 
 ## Available Methods
 
-### Connection Level (`rmPoolConnection`)
+### Connection Level (`RmPoolConnection`)
 
 #### `getInfo(): object`
 Returns detailed connection information as an object.
@@ -64,7 +64,7 @@ conn.printInfo();
 // }
 ```
 
-### Pool Level (`rmPool`)
+### Pool Level (`RmPool`)
 
 #### `getInfo(): object`
 Returns detailed pool information including all connections.
@@ -130,7 +130,7 @@ pool.printStats();
 //   Max Size: 20
 ```
 
-### Pools Level (`rmPools`)
+### Pools Level (`RmPools`)
 
 #### `getInfo(): object`
 Returns information about all registered pools.
@@ -199,7 +199,7 @@ pools.printStats();
 
 ```typescript
 // Setup
-const pools = new rmPools({ debug: true, pools: [...] });
+const pools = new RmPools({ debug: true, pools: [...] });
 await pools.init();
 
 // Before a critical operation
@@ -220,7 +220,7 @@ pools.printStats();
 ### Check Pool Health
 
 ```typescript
-function checkPoolHealth(pool: rmPool): void {
+function checkPoolHealth(pool: RmPool): void {
   const stats = pool.getStats() as any;
 
   if (parseInt(stats.utilizationPercent) > 80) {

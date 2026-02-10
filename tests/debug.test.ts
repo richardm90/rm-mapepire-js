@@ -1,6 +1,6 @@
-import rmPoolConnection from '../src/rmPoolConnection';
-import rmPool from '../src/rmPool';
-import { rmPools } from '../src/rmPools';
+import RmPoolConnection from '../src/rmPoolConnection';
+import RmPool from '../src/rmPool';
+import { RmPools } from '../src/rmPools';
 import { PoolConfig } from '../src/types';
 
 jest.mock('@ibm/mapepire-js');
@@ -25,9 +25,9 @@ describe('Debug and Info Methods', () => {
     jest.clearAllMocks();
   });
 
-  describe('rmPoolConnection debug methods', () => {
+  describe('RmPoolConnection debug methods', () => {
     it('should return connection info', async () => {
-      const connection = new rmPoolConnection(mockPoolConfig);
+      const connection = new RmPoolConnection(mockPoolConfig);
       await connection.init(1);
 
       const info = connection.getInfo() as any;
@@ -42,7 +42,7 @@ describe('Debug and Info Methods', () => {
     });
 
     it('should print connection info without errors', async () => {
-      const connection = new rmPoolConnection(mockPoolConfig);
+      const connection = new RmPoolConnection(mockPoolConfig);
       await connection.init(1);
 
       const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
@@ -54,9 +54,9 @@ describe('Debug and Info Methods', () => {
     });
   });
 
-  describe('rmPool debug methods', () => {
+  describe('RmPool debug methods', () => {
     it('should return pool info', async () => {
-      const pool = new rmPool({ id: 'test-pool', config: mockPoolConfig });
+      const pool = new RmPool({ id: 'test-pool', config: mockPoolConfig });
       await pool.init();
 
       const info = pool.getInfo() as any;
@@ -72,7 +72,7 @@ describe('Debug and Info Methods', () => {
     });
 
     it('should return pool stats', async () => {
-      const pool = new rmPool({ id: 'test-pool', config: mockPoolConfig });
+      const pool = new RmPool({ id: 'test-pool', config: mockPoolConfig });
       await pool.init();
 
       const stats = pool.getStats() as any;
@@ -87,7 +87,7 @@ describe('Debug and Info Methods', () => {
     });
 
     it('should calculate utilization correctly', async () => {
-      const pool = new rmPool({ id: 'test-pool', config: mockPoolConfig });
+      const pool = new RmPool({ id: 'test-pool', config: mockPoolConfig });
       await pool.init();
 
       const stats = pool.getStats() as any;
@@ -97,7 +97,7 @@ describe('Debug and Info Methods', () => {
     });
 
     it('should track available vs busy connections', async () => {
-      const pool = new rmPool({ id: 'test-pool', config: mockPoolConfig });
+      const pool = new RmPool({ id: 'test-pool', config: mockPoolConfig });
       await pool.init();
 
       // Initially all should be available
@@ -121,7 +121,7 @@ describe('Debug and Info Methods', () => {
     });
 
     it('should print pool info without errors', async () => {
-      const pool = new rmPool({ id: 'test-pool', config: mockPoolConfig });
+      const pool = new RmPool({ id: 'test-pool', config: mockPoolConfig });
       await pool.init();
 
       const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
@@ -133,7 +133,7 @@ describe('Debug and Info Methods', () => {
     });
 
     it('should print pool stats without errors', async () => {
-      const pool = new rmPool({ id: 'test-pool', config: mockPoolConfig });
+      const pool = new RmPool({ id: 'test-pool', config: mockPoolConfig });
       await pool.init();
 
       const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
@@ -145,9 +145,9 @@ describe('Debug and Info Methods', () => {
     });
   });
 
-  describe('rmPools debug methods', () => {
+  describe('RmPools debug methods', () => {
     it('should return pools info', async () => {
-      const pools = new rmPools({
+      const pools = new RmPools({
         activate: true,
         pools: [mockPoolConfig],
       });
@@ -165,7 +165,7 @@ describe('Debug and Info Methods', () => {
     });
 
     it('should include pool stats in pools info', async () => {
-      const pools = new rmPools({
+      const pools = new RmPools({
         activate: true,
         pools: [mockPoolConfig],
       });
@@ -181,7 +181,7 @@ describe('Debug and Info Methods', () => {
     });
 
     it('should print pools info without errors', async () => {
-      const pools = new rmPools({
+      const pools = new RmPools({
         activate: true,
         pools: [mockPoolConfig],
       });
@@ -197,7 +197,7 @@ describe('Debug and Info Methods', () => {
     });
 
     it('should print pools stats without errors', async () => {
-      const pools = new rmPools({
+      const pools = new RmPools({
         activate: true,
         pools: [mockPoolConfig],
       });
@@ -227,7 +227,7 @@ describe('Debug and Info Methods', () => {
         },
       };
 
-      const pools = new rmPools({
+      const pools = new RmPools({
         activate: true,
         pools: [mockPoolConfig, poolConfig2],
       });
@@ -242,7 +242,7 @@ describe('Debug and Info Methods', () => {
     });
 
     it('should show inactive pools', async () => {
-      const pools = new rmPools({
+      const pools = new RmPools({
         activate: false,
         pools: [mockPoolConfig],
       });

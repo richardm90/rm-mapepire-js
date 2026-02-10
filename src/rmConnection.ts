@@ -5,7 +5,7 @@ import defaultLogger from './logger';
 /**
  * Uses and Extends the Connection class implemented in idb-pconnector.
  */
-class rmConnection {
+class RmConnection {
   creds: DaemonServer;
   debug: boolean;
   JDBCOptions: JDBCOptions;
@@ -118,4 +118,4 @@ class rmConnection {
   }
 }
 
-export default rmConnection;
+export default RmConnection;

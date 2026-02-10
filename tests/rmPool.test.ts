@@ -1,8 +1,8 @@
 import './setup';
-import rmPool from '../src/rmPool';
-import rmPoolConnection from '../src/rmPoolConnection';
+import RmPool from '../src/rmPool';
+import RmPoolConnection from '../src/rmPoolConnection';
 
-describe('rmPool', () => {
+describe('RmPool', () => {
   const mockConfig = {
     id: 'test-pool',
     config: {
@@ -31,10 +31,10 @@ describe('rmPool', () => {
   });
 
   describe('constructor', () => {
-    it('should create a new rmPool instance', () => {
-      const pool = new rmPool(mockConfig);
+    it('should create a new RmPool instance', () => {
+      const pool = new RmPool(mockConfig);
 
-      expect(pool).toBeInstanceOf(rmPool);
+      expect(pool).toBeInstanceOf(RmPool);
       expect(pool.id).toBe('test-pool');
       expect(pool.connections).toEqual([]);
       expect(pool.maxSize).toBe(5);
@@ -55,7 +55,7 @@ describe('rmPool', () => {
         },
       };
 
-      const pool = new rmPool(minimalConfig);
+      const pool = new RmPool(minimalConfig);
 
       expect(pool.maxSize).toBe(20);
       expect(pool.initialConnections.size).toBe(8);
@@ -64,7 +64,7 @@ describe('rmPool', () => {
 
   describe('init', () => {
     it('should create initial connections', async () => {
-      const pool = new rmPool(mockConfig);
+      const pool = new RmPool(mockConfig);
 
       await pool.init();
 
@@ -72,7 +72,7 @@ describe('rmPool', () => {
     });
 
     it('should make connections available', async () => {
-      const pool = new rmPool(mockConfig);
+      const pool = new RmPool(mockConfig);
 
       await pool.init();
 
@@ -84,17 +84,17 @@ describe('rmPool', () => {
 
   describe('attach', () => {
     it('should return an available connection', async () => {
-      const pool = new rmPool(mockConfig);
+      const pool = new RmPool(mockConfig);
       await pool.init();
 
       const connection = await pool.attach();
 
-      expect(connection).toBeInstanceOf(rmPoolConnection);
+      expect(connection).toBeInstanceOf(RmPoolConnection);
       expect(connection.isAvailable()).toBe(false);
     });
 
     it('should create new connections if all are busy', async () => {
-      const pool = new rmPool(mockConfig);
+      const pool = new RmPool(mockConfig);
       await pool.init();
 
       // Attach all initial connections
@@ -105,11 +105,11 @@ describe('rmPool', () => {
       const connection = await pool.attach();
 
       expect(pool.connections.length).toBe(3);
-      expect(connection).toBeInstanceOf(rmPoolConnection);
+      expect(connection).toBeInstanceOf(RmPoolConnection);
     });
 
     it('should throw error when max connections reached', async () => {
-      const pool = new rmPool(mockConfig);
+      const pool = new RmPool(mockConfig);
       await pool.init();
 
       // Attach all possible connections
@@ -124,7 +124,7 @@ describe('rmPool', () => {
 
   describe('attach concurrency', () => {
     it('should not assign the same connection to concurrent callers', async () => {
-      const pool = new rmPool(mockConfig);
+      const pool = new RmPool(mockConfig);
       await pool.init();
 
       // Concurrently attach both initial connections
@@ -136,7 +136,7 @@ describe('rmPool', () => {
     });
 
     it('should serialize connection creation under contention', async () => {
-      const pool = new rmPool(mockConfig);
+      const pool = new RmPool(mockConfig);
       await pool.init();
 
       // Use all initial connections
@@ -152,7 +152,7 @@ describe('rmPool', () => {
     });
 
     it('should propagate errors without blocking the queue', async () => {
-      const pool = new rmPool(mockConfig);
+      const pool = new RmPool(mockConfig);
       await pool.init();
 
       // Exhaust all connections (maxSize = 5)
@@ -173,7 +173,7 @@ describe('rmPool', () => {
 
   describe('detach', () => {
     it('should make connection available again', async () => {
-      const pool = new rmPool(mockConfig);
+      const pool = new RmPool(mockConfig);
       await pool.init();
 
       const connection = await pool.attach();
@@ -186,7 +186,7 @@ describe('rmPool', () => {
 
   describe('detachAll', () => {
     it('should detach all connections', async () => {
-      const pool = new rmPool(mockConfig);
+      const pool = new RmPool(mockConfig);
       await pool.init();
 
       await pool.attach();
@@ -202,7 +202,7 @@ describe('rmPool', () => {
 
   describe('retire', () => {
     it('should remove connection from pool', async () => {
-      const pool = new rmPool(mockConfig);
+      const pool = new RmPool(mockConfig);
       await pool.init();
 
       const initialLength = pool.connections.length;
@@ -214,7 +214,7 @@ describe('rmPool', () => {
     });
 
     it('should keep stable poolIndex after retire', async () => {
-      const pool = new rmPool(mockConfig);
+      const pool = new RmPool(mockConfig);
       await pool.init();
 
       // Initial connections get IDs 1 and 2
@@ -240,7 +240,7 @@ describe('rmPool', () => {
 
   describe('retireAll', () => {
     it('should retire all connections', async () => {
-      const pool = new rmPool(mockConfig);
+      const pool = new RmPool(mockConfig);
       await pool.init();
 
       await pool.retireAll();
@@ -251,7 +251,7 @@ describe('rmPool', () => {
 
   describe('health check on attach', () => {
     it('should retire unhealthy connection and return next healthy one', async () => {
-      const pool = new rmPool(mockConfig);
+      const pool = new RmPool(mockConfig);
       await pool.init();
 
       // Make first connection fail health check
@@ -267,7 +267,7 @@ describe('rmPool', () => {
     });
 
     it('should create new connection if all existing fail health check', async () => {
-      const pool = new rmPool(mockConfig);
+      const pool = new RmPool(mockConfig);
       await pool.init();
 
       // Make both initial connections fail health check
@@ -293,7 +293,7 @@ describe('rmPool', () => {
         },
       };
 
-      const pool = new rmPool(configNoHealthCheck);
+      const pool = new RmPool(configNoHealthCheck);
       await pool.init();
 
       // Make connection "unhealthy" — but health check is disabled
@@ -308,14 +308,14 @@ describe('rmPool', () => {
     });
 
     it('should default to health check enabled', () => {
-      const pool = new rmPool(mockConfig);
+      const pool = new RmPool(mockConfig);
       expect(pool.healthCheckOnAttach).toBe(true);
     });
   });
 
   describe('events', () => {
     it('should emit pool:initialized on init', async () => {
-      const pool = new rmPool(mockConfig);
+      const pool = new RmPool(mockConfig);
       const handler = jest.fn();
       pool.on('pool:initialized', handler);
 
@@ -328,7 +328,7 @@ describe('rmPool', () => {
     });
 
     it('should emit connection:created for each new connection', async () => {
-      const pool = new rmPool(mockConfig);
+      const pool = new RmPool(mockConfig);
       const handler = jest.fn();
       pool.on('connection:created', handler);
 
@@ -344,7 +344,7 @@ describe('rmPool', () => {
     });
 
     it('should emit connection:attached and connection:detached', async () => {
-      const pool = new rmPool(mockConfig);
+      const pool = new RmPool(mockConfig);
       await pool.init();
 
       const attachHandler = jest.fn();
@@ -366,7 +366,7 @@ describe('rmPool', () => {
     });
 
     it('should emit connection:retired when a connection is retired', async () => {
-      const pool = new rmPool(mockConfig);
+      const pool = new RmPool(mockConfig);
       await pool.init();
 
       const handler = jest.fn();
@@ -382,7 +382,7 @@ describe('rmPool', () => {
     });
 
     it('should emit connection:healthCheckFailed when health check fails', async () => {
-      const pool = new rmPool(mockConfig);
+      const pool = new RmPool(mockConfig);
       await pool.init();
 
       const handler = jest.fn();
@@ -399,7 +399,7 @@ describe('rmPool', () => {
     });
 
     it('should emit pool:exhausted when max connections reached', async () => {
-      const pool = new rmPool(mockConfig);
+      const pool = new RmPool(mockConfig);
       await pool.init();
 
       const handler = jest.fn();
@@ -444,7 +444,7 @@ describe('rmPool', () => {
         },
       };
 
-      const pool = new rmPool(configWithExpiry);
+      const pool = new RmPool(configWithExpiry);
       await pool.init();
 
       const connection = pool.connections[0];
@@ -452,7 +452,7 @@ describe('rmPool', () => {
     });
 
     it('should cancel expiry timer', async () => {
-      const pool = new rmPool(mockConfig);
+      const pool = new RmPool(mockConfig);
       await pool.init();
 
       const connection = pool.connections[0];
@@ -478,7 +478,7 @@ describe('rmPool', () => {
         },
       };
 
-      const pool = new rmPool(configWithExpiry);
+      const pool = new RmPool(configWithExpiry);
       await pool.init();
 
       expect(pool.connections.length).toBe(1);
@@ -490,7 +490,7 @@ describe('rmPool', () => {
     });
 
     it('should mark connection unavailable when expired', async () => {
-      const pool = new rmPool(mockConfig);
+      const pool = new RmPool(mockConfig);
       await pool.init();
 
       const connection = pool.connections[0];

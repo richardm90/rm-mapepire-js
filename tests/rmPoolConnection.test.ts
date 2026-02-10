@@ -1,11 +1,11 @@
-import rmPoolConnection from '../src/rmPoolConnection';
+import RmPoolConnection from '../src/rmPoolConnection';
 import { PoolConfig } from '../src/types';
 import { SQLJob, States } from '@ibm/mapepire-js';
 
 // Mock the module before tests run
 jest.mock('@ibm/mapepire-js');
 
-describe('rmPoolConnection', () => {
+describe('RmPoolConnection', () => {
   const mockPoolConfig: PoolConfig = {
     id: 'test-pool',
     PoolOptions: {
@@ -25,10 +25,10 @@ describe('rmPoolConnection', () => {
   });
 
   describe('constructor', () => {
-    it('should create a new rmPoolConnection instance', () => {
-      const connection = new rmPoolConnection(mockPoolConfig);
+    it('should create a new RmPoolConnection instance', () => {
+      const connection = new RmPoolConnection(mockPoolConfig);
 
-      expect(connection).toBeInstanceOf(rmPoolConnection);
+      expect(connection).toBeInstanceOf(RmPoolConnection);
       expect(connection.poolId).toBe('test-pool');
       expect(connection.poolIndex).toBeNull();
       expect(connection.available).toBe(false);
@@ -36,7 +36,7 @@ describe('rmPoolConnection', () => {
     });
 
     it('should use default values for optional properties', () => {
-      const connection = new rmPoolConnection(mockPoolConfig);
+      const connection = new RmPoolConnection(mockPoolConfig);
 
       expect(connection.debug).toBe(false);
       expect(connection.JDBCOptions).toEqual({});
@@ -46,7 +46,7 @@ describe('rmPoolConnection', () => {
 
   describe('init', () => {
     it('should initialize the connection', async () => {
-      const connection = new rmPoolConnection(mockPoolConfig);
+      const connection = new RmPoolConnection(mockPoolConfig);
       await connection.init(1);
 
       expect(connection.poolIndex).toBe(1);
@@ -55,7 +55,7 @@ describe('rmPoolConnection', () => {
     });
 
     it('should connect if status is notStarted', async () => {
-      const connection = new rmPoolConnection(mockPoolConfig);
+      const connection = new RmPoolConnection(mockPoolConfig);
       await connection.init(1);
 
       expect(connection.connection).toBeDefined();
@@ -63,7 +63,7 @@ describe('rmPoolConnection', () => {
     });
 
     it('should execute initialization SQL', async () => {
-      const connection = new rmPoolConnection(mockPoolConfig);
+      const connection = new RmPoolConnection(mockPoolConfig);
       process.env.PROJECT_NAME = 'TestProject';
 
       await connection.init(1);
@@ -75,7 +75,7 @@ describe('rmPoolConnection', () => {
 
   describe('query', () => {
     it('should execute a SQL query', async () => {
-      const connection = new rmPoolConnection(mockPoolConfig);
+      const connection = new RmPoolConnection(mockPoolConfig);
       await connection.init(1);
 
       const result = await connection.query('SELECT * FROM TEST');
@@ -85,7 +85,7 @@ describe('rmPoolConnection', () => {
     });
 
     it('should pass options to execute', async () => {
-      const connection = new rmPoolConnection(mockPoolConfig);
+      const connection = new RmPoolConnection(mockPoolConfig);
       await connection.init(1);
 
       const opts = { parameters: [1, 2, 3] };
@@ -98,7 +98,7 @@ describe('rmPoolConnection', () => {
   describe('init with parameterized queries', () => {
     it('should use parameterized call for LPRINTF', async () => {
       const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
-      const connection = new rmPoolConnection(mockPoolConfig);
+      const connection = new RmPoolConnection(mockPoolConfig);
       process.env.PROJECT_NAME = 'TestProject';
 
       await connection.init(1);
@@ -114,7 +114,7 @@ describe('rmPoolConnection', () => {
 
   describe('availability management', () => {
     it('should set availability', () => {
-      const connection = new rmPoolConnection(mockPoolConfig);
+      const connection = new RmPoolConnection(mockPoolConfig);
 
       connection.setAvailable(true);
       expect(connection.isAvailable()).toBe(true);
@@ -124,7 +124,7 @@ describe('rmPoolConnection', () => {
     });
 
     it('should detach and set available to true', async () => {
-      const connection = new rmPoolConnection(mockPoolConfig);
+      const connection = new RmPoolConnection(mockPoolConfig);
       connection.setAvailable(false);
 
       await connection.detach();
@@ -135,7 +135,7 @@ describe('rmPoolConnection', () => {
 
   describe('retire', () => {
     it('should retire the connection', async () => {
-      const connection = new rmPoolConnection(mockPoolConfig);
+      const connection = new RmPoolConnection(mockPoolConfig);
       await connection.init(1);
 
       const result = await connection.retire();

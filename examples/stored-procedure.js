@@ -6,10 +6,10 @@
  * and allows you to execute CL commands via SQL.
  */
 
-const { rmPools } = require('rm-mapepire-js');
+const { RmPools } = require('rm-mapepire-js');
 
 async function main() {
-  const pools = new rmPools({
+  const pools = new RmPools({
     pools: [
       {
         id: 'mydb',

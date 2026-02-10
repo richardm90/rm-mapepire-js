@@ -1,8 +1,8 @@
 // Main exports for the package
-export { default as rmConnection } from './rmConnection';
-export { default as rmPool } from './rmPool';
-export { default as rmPoolConnection } from './rmPoolConnection';
-export { rmPools } from './rmPools';
+export { default as RmConnection } from './rmConnection';
+export { default as RmPool } from './rmPool';
+export { default as RmPoolConnection } from './rmPoolConnection';
+export { RmPools } from './rmPools';
 
 // Export types
 export * from './types';

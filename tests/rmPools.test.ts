@@ -1,9 +1,9 @@
 import './setup';
-import { rmPools } from '../src/rmPools';
-import rmPool from '../src/rmPool';
+import { RmPools } from '../src/rmPools';
+import RmPool from '../src/rmPool';
 import { PoolConfig } from '../src/types';
 
-describe('rmPools', () => {
+describe('RmPools', () => {
   const mockPoolConfig: PoolConfig = {
     id: 'test-pool-1',
     PoolOptions: {
@@ -35,17 +35,17 @@ describe('rmPools', () => {
   });
 
   describe('constructor', () => {
-    it('should create a new rmPools instance', () => {
-      const pools = new rmPools();
+    it('should create a new RmPools instance', () => {
+      const pools = new RmPools();
 
-      expect(pools).toBeInstanceOf(rmPools);
+      expect(pools).toBeInstanceOf(RmPools);
       expect(pools.pools).toEqual([]);
       expect(pools.activate).toBe(true);
       expect(pools.debug).toBe(false);
     });
 
     it('should accept configuration options', () => {
-      const pools = new rmPools({
+      const pools = new RmPools({
         activate: false,
         debug: true,
       });
@@ -57,7 +57,7 @@ describe('rmPools', () => {
 
   describe('register', () => {
     it('should register a new pool', async () => {
-      const pools = new rmPools({ activate: false });
+      const pools = new RmPools({ activate: false });
 
       const result = await pools.register(mockPoolConfig);
 
@@ -67,7 +67,7 @@ describe('rmPools', () => {
     });
 
     it('should not register duplicate pool IDs', async () => {
-      const pools = new rmPools({ activate: false });
+      const pools = new RmPools({ activate: false });
 
       await pools.register(mockPoolConfig);
       const result = await pools.register(mockPoolConfig);
@@ -77,16 +77,16 @@ describe('rmPools', () => {
     });
 
     it('should activate pool if activate is true', async () => {
-      const pools = new rmPools({ activate: true });
+      const pools = new RmPools({ activate: true });
 
       await pools.register(mockPoolConfig);
 
       expect(pools.pools[0].active).toBe(true);
-      expect(pools.pools[0].rmPool).toBeInstanceOf(rmPool);
+      expect(pools.pools[0].rmPool).toBeInstanceOf(RmPool);
     });
 
     it('should not exceed maximum number of pools', async () => {
-      const pools = new rmPools({ activate: false });
+      const pools = new RmPools({ activate: false });
 
       // Register 8 pools (MAX_POOLS)
       for (let i = 0; i < 8; i++) {
@@ -109,7 +109,7 @@ describe('rmPools', () => {
 
   describe('init', () => {
     it('should initialize all configured pools', async () => {
-      const pools = new rmPools({
+      const pools = new RmPools({
         activate: false,
         pools: [mockPoolConfig, mockPoolConfig2],
       });
@@ -124,29 +124,29 @@ describe('rmPools', () => {
 
   describe('get', () => {
     it('should get a pool by ID', async () => {
-      const pools = new rmPools({ activate: false });
+      const pools = new RmPools({ activate: false });
       await pools.register(mockPoolConfig);
       await pools.register(mockPoolConfig2);
 
       const pool = await pools.get('test-pool-2');
 
-      expect(pool).toBeInstanceOf(rmPool);
+      expect(pool).toBeInstanceOf(RmPool);
       expect(pool?.id).toBe('test-pool-2');
     });
 
     it('should return first pool if no ID provided', async () => {
-      const pools = new rmPools({ activate: false });
+      const pools = new RmPools({ activate: false });
       await pools.register(mockPoolConfig);
       await pools.register(mockPoolConfig2);
 
       const pool = await pools.get();
 
-      expect(pool).toBeInstanceOf(rmPool);
+      expect(pool).toBeInstanceOf(RmPool);
       expect(pool?.id).toBe('test-pool-1');
     });
 
     it('should return null if pool not found', async () => {
-      const pools = new rmPools({ activate: false });
+      const pools = new RmPools({ activate: false });
       await pools.register(mockPoolConfig);
 
       const pool = await pools.get('non-existent');
@@ -155,7 +155,7 @@ describe('rmPools', () => {
     });
 
     it('should return null if no pools registered', async () => {
-      const pools = new rmPools({ activate: false });
+      const pools = new RmPools({ activate: false });
 
       const pool = await pools.get('any-id');
 
@@ -163,7 +163,7 @@ describe('rmPools', () => {
     });
 
     it('should activate pool if not already active', async () => {
-      const pools = new rmPools({ activate: false });
+      const pools = new RmPools({ activate: false });
       await pools.register(mockPoolConfig);
 
       expect(pools.pools[0].active).toBe(false);
@@ -176,7 +176,7 @@ describe('rmPools', () => {
 
   describe('sanitizePoolId', () => {
     it('should return first pool ID if no ID provided', async () => {
-      const pools = new rmPools({ activate: false });
+      const pools = new RmPools({ activate: false });
       await pools.register(mockPoolConfig);
 
       const sanitized = pools.sanitizePoolId();
@@ -185,7 +185,7 @@ describe('rmPools', () => {
     });
 
     it('should return provided ID unchanged', async () => {
-      const pools = new rmPools({ activate: false });
+      const pools = new RmPools({ activate: false });
       await pools.register(mockPoolConfig);
 
       const sanitized = pools.sanitizePoolId('custom-id');
@@ -194,7 +194,7 @@ describe('rmPools', () => {
     });
 
     it('should return undefined if no pools and no ID', () => {
-      const pools = new rmPools({ activate: false });
+      const pools = new RmPools({ activate: false });
 
       const sanitized = pools.sanitizePoolId();
 
@@ -204,7 +204,7 @@ describe('rmPools', () => {
 
   describe('attach', () => {
     it('should attach a connection from a pool', async () => {
-      const pools = new rmPools({ activate: true });
+      const pools = new RmPools({ activate: true });
       await pools.register(mockPoolConfig);
 
       const pool = await pools.get('test-pool-1');
@@ -217,7 +217,7 @@ describe('rmPools', () => {
 
   describe('close', () => {
     it('should close all active pools', async () => {
-      const pools = new rmPools({ activate: true });
+      const pools = new RmPools({ activate: true });
       await pools.register(mockPoolConfig);
       await pools.register(mockPoolConfig2);
 
@@ -232,7 +232,7 @@ describe('rmPools', () => {
     });
 
     it('should retire all connections in each pool', async () => {
-      const pools = new rmPools({ activate: true });
+      const pools = new RmPools({ activate: true });
       await pools.register(mockPoolConfig);
 
       const pool = pools.pools[0].rmPool!;
@@ -244,7 +244,7 @@ describe('rmPools', () => {
     });
 
     it('should skip inactive pools', async () => {
-      const pools = new rmPools({ activate: false });
+      const pools = new RmPools({ activate: false });
       await pools.register(mockPoolConfig);
 
       expect(pools.pools[0].active).toBe(false);
@@ -256,7 +256,7 @@ describe('rmPools', () => {
     });
 
     it('should succeed when no pools are registered', async () => {
-      const pools = new rmPools();
+      const pools = new RmPools();
 
       const result = await pools.close();
 
@@ -267,7 +267,7 @@ describe('rmPools', () => {
   describe('logger injection', () => {
     it('should use custom logger when provided', async () => {
       const customLogger = { log: jest.fn() };
-      const pools = new rmPools({
+      const pools = new RmPools({
         activate: true,
         debug: true,
         logger: customLogger,
@@ -282,9 +282,9 @@ describe('rmPools', () => {
       )).toBe(true);
     });
 
-    it('should pass custom logger down to rmPool', async () => {
+    it('should pass custom logger down to RmPool', async () => {
       const customLogger = { log: jest.fn() };
-      const pools = new rmPools({
+      const pools = new RmPools({
         activate: true,
         debug: true,
         logger: customLogger,
@@ -293,15 +293,15 @@ describe('rmPools', () => {
 
       await pools.init();
 
-      // rmPool should have logged via the custom logger
+      // RmPool should have logged via the custom logger
       expect(customLogger.log.mock.calls.some(
-        (call: any[]) => call[2]?.service === 'rmPool'
+        (call: any[]) => call[2]?.service === 'RmPool'
       )).toBe(true);
     });
 
-    it('should pass custom logger down to rmPoolConnection', async () => {
+    it('should pass custom logger down to RmPoolConnection', async () => {
       const customLogger = { log: jest.fn() };
-      const pools = new rmPools({
+      const pools = new RmPools({
         activate: true,
         debug: true,
         logger: customLogger,
@@ -310,14 +310,14 @@ describe('rmPools', () => {
 
       await pools.init();
 
-      // rmPoolConnection should have logged via the custom logger
+      // RmPoolConnection should have logged via the custom logger
       expect(customLogger.log.mock.calls.some(
-        (call: any[]) => call[2]?.service === 'rmPoolConnection'
+        (call: any[]) => call[2]?.service === 'RmPoolConnection'
       )).toBe(true);
     });
 
     it('should use default logger when none provided', () => {
-      const pools = new rmPools({ activate: false });
+      const pools = new RmPools({ activate: false });
       // Should not throw — uses built-in console logger
       expect(pools.logger).toBeDefined();
     });
@@ -325,7 +325,7 @@ describe('rmPools', () => {
 
   describe('connectionDiag', () => {
     it('should log connection diagnostics', async () => {
-      const pools = new rmPools({ activate: true, debug: true });
+      const pools = new RmPools({ activate: true, debug: true });
       await pools.register(mockPoolConfig);
 
       const pool = await pools.get('test-pool-1');
