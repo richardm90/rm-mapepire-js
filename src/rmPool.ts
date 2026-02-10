@@ -287,13 +287,17 @@ class rmPool {
   }
 
   /**
-   * Flags the connection as expired.
+   * Flags the connection as expired and retires it.
    */
-  setExpired(conn: rmPoolConnection): void {
+  async setExpired(conn: rmPoolConnection): Promise<void> {
     conn.setAvailable(false);
-    this.retire(conn);
-
     this.log(`Connection ${conn.poolIndex} expired`);
+
+    try {
+      await this.retire(conn);
+    } catch (error) {
+      this.log(`Failed to retire expired connection ${conn.poolIndex}: ${error}`, 'error');
+    }
   }
 
   /**

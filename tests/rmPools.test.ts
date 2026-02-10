@@ -88,18 +88,19 @@ describe('rmPools', () => {
     it('should not exceed maximum number of pools', async () => {
       const pools = new rmPools({ activate: false });
 
-      // Register 7 pools (MAX_POOLS - 1)
-      for (let i = 0; i < 7; i++) {
-        await pools.register({
+      // Register 8 pools (MAX_POOLS)
+      for (let i = 0; i < 8; i++) {
+        const result = await pools.register({
           ...mockPoolConfig,
           id: `pool-${i}`,
         });
+        expect(result).toBe(true);
       }
 
-      // 8th pool should fail
+      // 9th pool should fail
       const result = await pools.register({
         ...mockPoolConfig,
-        id: 'pool-8',
+        id: 'pool-9',
       });
 
       expect(result).toBe(false);

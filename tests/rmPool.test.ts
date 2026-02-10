@@ -218,5 +218,43 @@ describe('rmPool', () => {
 
       expect(connection.expiryTimerId).toBeNull();
     });
+
+    it('should retire connection when expiry timer fires', async () => {
+      const configWithExpiry = {
+        ...mockConfig,
+        config: {
+          ...mockConfig.config,
+          PoolOptions: {
+            ...mockConfig.config.PoolOptions,
+            initialConnections: {
+              size: 1,
+              expiry: 1, // 1 minute
+            },
+          },
+        },
+      };
+
+      const pool = new rmPool(configWithExpiry);
+      await pool.init();
+
+      expect(pool.connections.length).toBe(1);
+
+      // Advance timers past expiry
+      await jest.advanceTimersByTimeAsync(60 * 1000);
+
+      expect(pool.connections.length).toBe(0);
+    });
+
+    it('should mark connection unavailable when expired', async () => {
+      const pool = new rmPool(mockConfig);
+      await pool.init();
+
+      const connection = pool.connections[0];
+      connection.setAvailable(true);
+
+      await pool.setExpired(connection);
+
+      expect(connection.isAvailable()).toBe(false);
+    });
   });
 });

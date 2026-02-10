@@ -51,7 +51,7 @@ class rmPools {
       }
     }
 
-    if (poolsLength >= MAX_POOLS - 1) {
+    if (poolsLength >= MAX_POOLS) {
       this.log(`Unable to register pool ${poolToReg.id} as the maximum number of pools has been reached.`);
       return false;
     }
