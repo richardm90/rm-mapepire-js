@@ -97,10 +97,10 @@ await pool.detach(connection);
 - `maxSize`: Maximum number of connections in the pool (default: 20)
 - `initialConnections`: Initial connection settings
   - `size`: Number of connections to create on initialization (default: 8)
-  - `expiry`: Connection expiry time in minutes (default: null)
+  - `expiry`: Connection expiry time in minutes (default: null). Set to `null` or omit for connections that never expire. A value of `0` is treated the same as `null` (no expiry). Only positive values start an expiry timer.
 - `incrementConnections`: Settings for dynamically added connections
   - `size`: Number of connections to add when pool is exhausted (default: 8)
-  - `expiry`: Expiry time for new connections in minutes
+  - `expiry`: Expiry time for new connections in minutes (same rules as above)
 - `dbConnectorDebug`: Enable debug logging (default: false)
 - `JDBCOptions`: JDBC options object - a standard Mapepire JDBCOptions object
 - `envvars`: Array of environment variables to set for each connection

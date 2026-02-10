@@ -1,14 +1,14 @@
 /**
- * Basic Query Example
+ * Environment Variables Example
  *
- * Demonstrates how to set up a connection pool and execute a simple SQL query.
+ * Demonstrates how to set IBM i job-level environment variables
+ * on pooled connections. These are set via the ADDENVVAR CL command
+ * when each connection is initialized.
  */
 
 const { rmPools } = require('rm-mapepire-js');
-// const { rmPools } = require('../dist');
 
 async function main() {
-  // Create a pools manager with a single pool
   const pools = new rmPools({
     pools: [
       {
@@ -20,32 +20,31 @@ async function main() {
             password: 'MYPASSWORD',
             rejectUnauthorized: false
           },
-          maxSize: 10,
-          initialConnections: {
-            size: 2,
-          },
+          envvars: [
+            { envvar: 'APP_ENV', value: 'production' },
+            { envvar: 'LOG_LEVEL', value: 'info' },
+            { envvar: 'REGION', value: 'UK_SW' },
+          ],
         },
       },
     ],
   });
 
-  // Initialize all pools (creates the initial connections)
   await pools.init();
 
-  // Get the pool by its id
+  // Each connection in the pool will have the environment variables set
   const pool = await pools.get('mydb');
   if (!pool) {
     throw new Error('Pool not found');
   }
 
-  // Attach a connection from the pool
   const conn = await pool.attach();
 
-  // Execute a query
+  // The environment variables are available to programs running in
+  // the IBM i job associated with this connection
   const result = await conn.query('SELECT * FROM QIWS.QCUSTCDT');
-  console.log(result.data);
+  console.log(result);
 
-  // Return the connection to the pool when done
   await pool.detach(conn);
 
   // Retire all connections
