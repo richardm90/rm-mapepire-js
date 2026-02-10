@@ -122,6 +122,55 @@ describe('rmPool', () => {
     });
   });
 
+  describe('attach concurrency', () => {
+    it('should not assign the same connection to concurrent callers', async () => {
+      const pool = new rmPool(mockConfig);
+      await pool.init();
+
+      // Concurrently attach both initial connections
+      const [conn1, conn2] = await Promise.all([pool.attach(), pool.attach()]);
+
+      expect(conn1).not.toBe(conn2);
+      expect(conn1.isAvailable()).toBe(false);
+      expect(conn2.isAvailable()).toBe(false);
+    });
+
+    it('should serialize connection creation under contention', async () => {
+      const pool = new rmPool(mockConfig);
+      await pool.init();
+
+      // Use all initial connections
+      await pool.attach();
+      await pool.attach();
+
+      // Both callers need new connections — mutex ensures
+      // they don't both create the same connection
+      const [conn3, conn4] = await Promise.all([pool.attach(), pool.attach()]);
+
+      expect(conn3).not.toBe(conn4);
+      expect(pool.connections.length).toBe(4);
+    });
+
+    it('should propagate errors without blocking the queue', async () => {
+      const pool = new rmPool(mockConfig);
+      await pool.init();
+
+      // Exhaust all connections (maxSize = 5)
+      for (let i = 0; i < 5; i++) {
+        await pool.attach();
+      }
+
+      // This should fail — max reached
+      await expect(pool.attach()).rejects.toThrow('Maximum number of connections');
+
+      // Detach one and verify the queue still works
+      await pool.detach(pool.connections[0]);
+      const conn = await pool.attach();
+      expect(conn).toBeDefined();
+      expect(conn.isAvailable()).toBe(false);
+    });
+  });
+
   describe('detach', () => {
     it('should make connection available again', async () => {
       const pool = new rmPool(mockConfig);

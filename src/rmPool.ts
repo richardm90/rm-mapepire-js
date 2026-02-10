@@ -17,6 +17,15 @@ class rmPool {
   debug: boolean;
 
   /**
+   * Promise-chain mutex that serializes attach() calls.
+   * Each attach() chains onto this promise, ensuring only one
+   * runs at a time. This prevents two concurrent callers from
+   * claiming the same connection or both creating new connections
+   * when only one is needed.
+   */
+  private attachQueue: Promise<any>;
+
+  /**
    * Manages a list of rmPoolConnection instances.
    * Constructor to instantiate a new instance of a rmPool class given the `database` and `config`
    * @param {object} config - rmPool config object.
@@ -48,6 +57,7 @@ class rmPool {
     this.JDBCOptions = opts.JDBCOptions || {};
     this.initCommands = opts.initCommands || [];
     this.debug = debug || false;
+    this.attachQueue = Promise.resolve();
   }
 
   /**
@@ -194,9 +204,23 @@ class rmPool {
 
   /**
    * Finds and returns the first available Connection.
+   * Serialized via a promise-chain mutex to prevent concurrent callers
+   * from claiming the same connection or creating duplicate connections.
    * @returns {rmPoolConnection} - one connection from the rmPool.
    */
-  async attach(): Promise<rmPoolConnection> {
+  attach(): Promise<rmPoolConnection> {
+    const result = this.attachQueue.then(() => this._attach());
+    // Update the queue: whether _attach succeeds or fails, the next
+    // caller should be allowed to proceed, so we swallow errors here.
+    this.attachQueue = result.catch(() => {});
+    return result;
+  }
+
+  /**
+   * Internal implementation of attach(). Must only be called via
+   * the serialized attach() method above.
+   */
+  private async _attach(): Promise<rmPoolConnection> {
     const size = this.incrementConnections.size!;
     let validConnection = false;
     let connection: rmPoolConnection | undefined;
