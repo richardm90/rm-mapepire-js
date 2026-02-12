@@ -1,5 +1,5 @@
 import { SQLJob, JDBCOptions, DaemonServer, States } from '@ibm/mapepire-js';
-import { InitCommand, QueryOptions, Logger } from './types';
+import { InitCommand, QueryOptions, Logger, RmQueryResult } from './types';
 import defaultLogger from './logger';
 
 /**
@@ -62,14 +62,14 @@ class RmConnection {
     }
   }
 
-  async execute(sql: string, opts: QueryOptions = {}): Promise<any> {
+  async execute(sql: string, opts: QueryOptions = {}): Promise<RmQueryResult<any>> {
     const result = await this.job.execute(sql, opts);
-    return result;
+    return { ...result, job: this.jobName! };
   }
 
-  async query(sql: string, opts: QueryOptions = {}): Promise<any> {
+  async query(sql: string, opts: QueryOptions = {}): Promise<RmQueryResult<any>> {
     const result = await this.job.execute(sql, opts);
-    return result;
+    return { ...result, job: this.jobName! };
   }
 
   /**

@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import RmPoolConnection from './rmPoolConnection';
-import { PoolConfig, InitialConnections, IncrementConnections, JDBCOptions, QueryOptions, Logger } from './types';
+import { PoolConfig, InitialConnections, IncrementConnections, JDBCOptions, QueryOptions, Logger, RmQueryResult } from './types';
 import { DaemonServer } from '@ibm/mapepire-js';
 import defaultLogger from './logger';
 
@@ -297,7 +297,7 @@ class RmPool extends EventEmitter {
    * @param {QueryOptions} opts - Query options to pass to the underlying execute method
    * @returns {Promise<any>} - Query result from the database
    */
-  async query(sql: string, opts: QueryOptions = {}): Promise<any> {
+  async query(sql: string, opts: QueryOptions = {}): Promise<RmQueryResult<any>> {
     const connection = await this.attach();
     try {
       const result = await connection.query(sql, opts);

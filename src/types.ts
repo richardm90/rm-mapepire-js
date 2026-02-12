@@ -1,7 +1,11 @@
-import { JDBCOptions, DaemonServer } from '@ibm/mapepire-js';
+import { JDBCOptions, DaemonServer, QueryResult } from '@ibm/mapepire-js';
 import type RmPool from './rmPool';
 
 export { JDBCOptions, DaemonServer };
+
+export interface RmQueryResult<T> extends QueryResult<T> {
+  job: string;
+}
 
 export interface InitCommand {
   command: string;

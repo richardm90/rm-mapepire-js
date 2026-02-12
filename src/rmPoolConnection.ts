@@ -1,6 +1,6 @@
 import RmConnection from './rmConnection';
 import { JDBCOptions, DaemonServer, States } from '@ibm/mapepire-js';
-import { PoolConfig, InitCommand, QueryOptions, Logger } from './types';
+import { PoolConfig, InitCommand, QueryOptions, Logger, RmQueryResult } from './types';
 import defaultLogger from './logger';
 
 /**
@@ -59,7 +59,7 @@ class RmPoolConnection {
     await this.connection.execute(`CALL SYSTOOLS.LPRINTF(?)`, { parameters: [message] });
   }
 
-  async query(sql: string, opts: QueryOptions = {}): Promise<any> {
+  async query(sql: string, opts: QueryOptions = {}): Promise<RmQueryResult<any>> {
     this.log(`Executing query on connection ${this.poolIndex}`);
     const result = await this.connection.execute(sql, opts);
     return result;
