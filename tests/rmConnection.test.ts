@@ -250,4 +250,160 @@ describe('RmConnection', () => {
     });
   });
 
+  describe('keepalive', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('should start keepalive timer when configured', async () => {
+      const conn = new RmConnection(mockCreds, mockJDBCOptions, [], false, undefined, 5);
+      await conn.init();
+
+      const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
+      const callsBefore = executeSpy.mock.calls.length;
+
+      // Advance past one keepalive interval (5 minutes)
+      await jest.advanceTimersByTimeAsync(5 * 60 * 1000);
+
+      // Should have sent a keepalive ping
+      const pingCalls = executeSpy.mock.calls.slice(callsBefore).filter(
+        (call: any[]) => call[0] === 'VALUES 1'
+      );
+      expect(pingCalls.length).toBe(1);
+
+      await conn.close();
+      executeSpy.mockRestore();
+    });
+
+    it('should not start keepalive timer when not configured', async () => {
+      const conn = new RmConnection(mockCreds, mockJDBCOptions);
+      await conn.init();
+
+      const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
+      const callsBefore = executeSpy.mock.calls.length;
+
+      await jest.advanceTimersByTimeAsync(10 * 60 * 1000);
+
+      const pingCalls = executeSpy.mock.calls.slice(callsBefore).filter(
+        (call: any[]) => call[0] === 'VALUES 1'
+      );
+      expect(pingCalls.length).toBe(0);
+
+      await conn.close();
+      executeSpy.mockRestore();
+    });
+
+    it('should not start keepalive timer when set to null', async () => {
+      const conn = new RmConnection(mockCreds, mockJDBCOptions, [], false, undefined, null);
+      await conn.init();
+
+      const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
+      const callsBefore = executeSpy.mock.calls.length;
+
+      await jest.advanceTimersByTimeAsync(10 * 60 * 1000);
+
+      const pingCalls = executeSpy.mock.calls.slice(callsBefore).filter(
+        (call: any[]) => call[0] === 'VALUES 1'
+      );
+      expect(pingCalls.length).toBe(0);
+
+      await conn.close();
+      executeSpy.mockRestore();
+    });
+
+    it('should send multiple pings over multiple intervals', async () => {
+      const conn = new RmConnection(mockCreds, mockJDBCOptions, [], false, undefined, 2);
+      await conn.init();
+
+      const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
+      const callsBefore = executeSpy.mock.calls.length;
+
+      // Advance past 3 intervals (6 minutes)
+      await jest.advanceTimersByTimeAsync(3 * 2 * 60 * 1000);
+
+      const pingCalls = executeSpy.mock.calls.slice(callsBefore).filter(
+        (call: any[]) => call[0] === 'VALUES 1'
+      );
+      expect(pingCalls.length).toBe(3);
+
+      await conn.close();
+      executeSpy.mockRestore();
+    });
+
+    it('should reset keepalive timer when execute is called', async () => {
+      const conn = new RmConnection(mockCreds, mockJDBCOptions, [], false, undefined, 5);
+      await conn.init();
+
+      const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
+
+      // Advance 4 minutes (just under the 5 min interval)
+      await jest.advanceTimersByTimeAsync(4 * 60 * 1000);
+
+      // Execute a real query — this resets the timer
+      const callsBefore = executeSpy.mock.calls.length;
+      await conn.execute('SELECT 1 FROM SYSIBM.SYSDUMMY1');
+
+      // Advance another 4 minutes — still under the reset interval
+      await jest.advanceTimersByTimeAsync(4 * 60 * 1000);
+
+      // No keepalive ping should have fired (timer was reset)
+      const pingCalls = executeSpy.mock.calls.slice(callsBefore).filter(
+        (call: any[]) => call[0] === 'VALUES 1'
+      );
+      expect(pingCalls.length).toBe(0);
+
+      await conn.close();
+      executeSpy.mockRestore();
+    });
+
+    it('should stop keepalive timer on close', async () => {
+      const conn = new RmConnection(mockCreds, mockJDBCOptions, [], false, undefined, 5);
+      await conn.init();
+
+      const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
+      await conn.close();
+
+      const callsBefore = executeSpy.mock.calls.length;
+
+      // Advance past the interval — no ping should fire
+      await jest.advanceTimersByTimeAsync(10 * 60 * 1000);
+
+      const pingCalls = executeSpy.mock.calls.slice(callsBefore).filter(
+        (call: any[]) => call[0] === 'VALUES 1'
+      );
+      expect(pingCalls.length).toBe(0);
+
+      executeSpy.mockRestore();
+    });
+
+    it('should stop keepalive timer when ping fails', async () => {
+      const conn = new RmConnection(mockCreds, mockJDBCOptions, [], false, undefined, 5);
+      await conn.init();
+
+      const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
+
+      // Make the next execute call fail (the keepalive ping)
+      executeSpy.mockRejectedValueOnce(new Error('Connection failed with code 1006'));
+
+      // Advance past one interval — ping fires and fails
+      await jest.advanceTimersByTimeAsync(5 * 60 * 1000);
+
+      const callsBefore = executeSpy.mock.calls.length;
+
+      // Advance past another interval — no more pings should fire
+      await jest.advanceTimersByTimeAsync(5 * 60 * 1000);
+
+      const pingCalls = executeSpy.mock.calls.slice(callsBefore).filter(
+        (call: any[]) => call[0] === 'VALUES 1'
+      );
+      expect(pingCalls.length).toBe(0);
+
+      executeSpy.mockRestore();
+    });
+  });
+
 });

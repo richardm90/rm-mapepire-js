@@ -24,6 +24,7 @@ export interface IncrementConnections {
 
 export interface HealthCheckConfig {
   onAttach?: boolean;  // Verify connection is alive before returning from attach() (default: true)
+  keepalive?: number | null;  // Interval in minutes to health-check idle connections (default: null = disabled)
 }
 
 export interface PoolOptions {

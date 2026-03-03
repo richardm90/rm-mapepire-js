@@ -18,6 +18,7 @@ class RmPoolConnection {
   connection!: RmConnection;
   jobName?: string;
   expiry?: number | null;
+  keepalive: number | null;
   logger: Logger;
 
   /**
@@ -34,6 +35,7 @@ class RmPoolConnection {
     this.initCommands = pool.PoolOptions?.initCommands || [];
     this.available = false;
     this.expiryTimerId = null;
+    this.keepalive = pool.PoolOptions?.healthCheck?.keepalive ?? null;
     this.debug = debug || false;
     this.logger = logger || pool.PoolOptions?.logger || defaultLogger;
   }
@@ -44,7 +46,7 @@ class RmPoolConnection {
   async init(poolIndex: number): Promise<void> {
     this.poolIndex = poolIndex;
 
-    this.connection = new RmConnection(this.creds, this.JDBCOptions, this.initCommands, this.debug, this.logger);
+    this.connection = new RmConnection(this.creds, this.JDBCOptions, this.initCommands, this.debug, this.logger, this.keepalive);
 
     await this.connection.init(true);
 

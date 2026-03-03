@@ -14,6 +14,8 @@ class RmConnection {
   job!: SQLJob;
   jobName?: string;
   logger: Logger;
+  keepalive: number | null;
+  private keepaliveTimerId: NodeJS.Timeout | null;
 
   /**
    * @description
@@ -21,15 +23,19 @@ class RmConnection {
    * @param {object} creds - connection credentials
    * @param {object} JDBCOptions - JDBCOptions
    * @param {object} initCommands - commands to run on connection init
-   * @param {object} debug - debug
+   * @param {boolean} debug - debug
+   * @param {Logger} logger - logger
+   * @param {number|null} keepalive - interval in minutes to send keepalive pings (null = disabled)
    */
-  constructor(creds: DaemonServer, JDBCOptions: JDBCOptions, initCommands: InitCommand[] = [], debug: boolean = false, logger?: Logger) {
+  constructor(creds: DaemonServer, JDBCOptions: JDBCOptions, initCommands: InitCommand[] = [], debug: boolean = false, logger?: Logger, keepalive?: number | null) {
     this.creds = creds || {};
     this.JDBCOptions = JDBCOptions || {};
     this.initCommands = initCommands || [];
     this.available = false;
     this.debug = debug || false;
     this.logger = logger || defaultLogger;
+    this.keepalive = keepalive ?? null;
+    this.keepaliveTimerId = null;
   }
 
   /**
@@ -60,9 +66,12 @@ class RmConnection {
         this.log(`Executed init command (${type}): ${command}`, 'debug');
       }
     }
+
+    this.startKeepalive();
   }
 
   async execute(sql: string, opts: QueryOptions = {}): Promise<RmQueryResult<any>> {
+    this.resetKeepalive();
     const result = await this.job.execute(sql, opts);
     return { ...result, job: this.jobName! };
   }
@@ -77,7 +86,58 @@ class RmConnection {
    * @returns {boolean} True if retired.
    */
   async close(): Promise<void> {
+    this.stopKeepalive();
     await this.job.close();
+  }
+
+  /**
+   * Starts the keepalive timer. Sends a lightweight query at regular
+   * intervals to prevent idle WebSocket connections from being dropped
+   * by firewalls or network intermediaries.
+   */
+  private startKeepalive(): void {
+    if (this.keepalive && this.keepalive > 0) {
+      const ms = this.keepalive * 60 * 1000;
+      this.keepaliveTimerId = setInterval(() => this.ping(), ms);
+      this.log(`Keepalive started (${this.keepalive} min)`, 'debug');
+    }
+  }
+
+  /**
+   * Stops the keepalive timer.
+   */
+  private stopKeepalive(): void {
+    if (this.keepaliveTimerId) {
+      clearInterval(this.keepaliveTimerId);
+      this.keepaliveTimerId = null;
+      this.log(`Keepalive stopped`, 'debug');
+    }
+  }
+
+  /**
+   * Resets the keepalive timer. Called when real traffic is sent,
+   * so the next keepalive ping is deferred by a full interval.
+   */
+  private resetKeepalive(): void {
+    if (this.keepaliveTimerId) {
+      this.stopKeepalive();
+      this.startKeepalive();
+    }
+  }
+
+  /**
+   * Sends a lightweight query to keep the connection alive.
+   * If the ping fails, the timer is stopped — the pool's
+   * health-check-on-attach will handle retirement.
+   */
+  private async ping(): Promise<void> {
+    try {
+      await this.job.execute('VALUES 1');
+      this.log(`Keepalive ping OK`, 'debug');
+    } catch (error) {
+      this.log(`Keepalive ping failed: ${error}`, 'error');
+      this.stopKeepalive();
+    }
   }
 
   /**

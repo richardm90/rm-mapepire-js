@@ -16,6 +16,7 @@ class RmPool extends EventEmitter {
   JDBCOptions: JDBCOptions;
   initCommands: any[];
   healthCheckOnAttach: boolean;
+  keepaliveInterval: number | null;
   debug: boolean;
   logger: Logger;
 
@@ -68,6 +69,7 @@ class RmPool extends EventEmitter {
     this.JDBCOptions = opts.JDBCOptions || {};
     this.initCommands = opts.initCommands || [];
     this.healthCheckOnAttach = opts.healthCheck?.onAttach ?? true;
+    this.keepaliveInterval = opts.healthCheck?.keepalive ?? null;
     this.debug = debug || false;
     this.logger = logger || opts.logger || defaultLogger;
     this.attachQueue = Promise.resolve();

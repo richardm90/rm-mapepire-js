@@ -73,6 +73,9 @@ const poolsConfig = {
         },
         JDBCOptions: {
           libraries: "RMDATA"
+        },
+        healthCheck: {
+          keepalive: 5 // ping idle connections every 5 minutes
         }
       }
     }
@@ -137,6 +140,7 @@ await pool.detach(connection);
 - `initCommands`: Array of commands to execute when each connection is initialized. Each entry is an object with `command` (string) and optional `type` (`'cl'` or `'sql'`, defaults to `'cl'`). CL commands are executed via `QCMDEXC` with parameterised input; SQL commands are executed directly via `job.execute()` without parameterisation. **Security note:** SQL-type init commands must be trusted, developer-supplied strings — never pass unsanitised user input as an init command.
 - `healthCheck`: Health check settings
   - `onAttach`: Verify connections are alive before returning from `attach()` by executing a lightweight query (`VALUES 1`). Unhealthy connections are automatically retired and replaced. (default: `true`). Set to `false` to disable.
+  - `keepalive`: Interval in minutes to send keepalive pings (`VALUES 1`) on idle connections, preventing WebSocket connections from being dropped by firewalls or network intermediaries. The timer resets whenever a real query is executed. If a keepalive ping fails, the timer stops and the connection will be retired on the next `attach()` health check. (default: `null` = disabled). Recommended: `5` for most environments.
 - `logger`: Custom logger object (per-pool override, see Logger below)
 
 #### Pools Options
