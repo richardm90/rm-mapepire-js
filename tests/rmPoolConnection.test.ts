@@ -14,7 +14,7 @@ describe('RmPoolConnection', () => {
         user: 'test-user',
         password: 'test-password',
       },
-      dbConnectorDebug: false,
+      logLevel: 'info',
       JDBCOptions: {},
       initCommands: [],
     },
@@ -38,7 +38,7 @@ describe('RmPoolConnection', () => {
     it('should use default values for optional properties', () => {
       const connection = new RmPoolConnection(mockPoolConfig);
 
-      expect(connection.debug).toBe(false);
+      expect(connection.logLevel).toBe('info');
       expect(connection.JDBCOptions).toEqual({});
       expect(connection.initCommands).toEqual([]);
     });

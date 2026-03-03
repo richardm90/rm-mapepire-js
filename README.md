@@ -54,7 +54,7 @@ npm install github:richardm90/rm-mapepire-js#dev
 import { RmPools } from 'rm-mapepire-js';
 
 const poolsConfig = {
-  debug: true,
+  logLevel: 'debug',
   activate: true,
   pools: [
     {
@@ -135,7 +135,7 @@ await pool.detach(connection);
 - `incrementConnections`: Settings for dynamically added connections
   - `size`: Number of connections to add when pool is exhausted (default: 8)
   - `expiry`: Expiry time for new connections in minutes (same rules as above)
-- `dbConnectorDebug`: Enable debug logging (default: false)
+- `logLevel`: Log level threshold for this pool: `'error'` | `'info'` | `'debug'` | `'none'` (overrides the global `logLevel` from Pools Options)
 - `JDBCOptions`: JDBC options object - a standard Mapepire JDBCOptions object
 - `initCommands`: Array of commands to execute when each connection is initialized. Each entry is an object with `command` (string) and optional `type` (`'cl'` or `'sql'`, defaults to `'cl'`). CL commands are executed via `QCMDEXC` with parameterised input; SQL commands are executed directly via `job.execute()` without parameterisation. **Security note:** SQL-type init commands must be trusted, developer-supplied strings — never pass unsanitised user input as an init command.
 - `healthCheck`: Health check settings
@@ -146,7 +146,7 @@ await pool.detach(connection);
 #### Pools Options
 
 - `activate`: Auto-activate pools on registration (default: true)
-- `debug`: Enable debug logging (default: false)
+- `logLevel`: Log level threshold: `'error'` | `'info'` | `'debug'` | `'none'` (default: `'info'`). Use `'error'` to suppress informational messages, `'debug'` for verbose output, or `'none'` to suppress all logging.
 - `pools`: Array of pool configurations
 - `logger`: Custom logger object implementing the `Logger` interface. Flows down to all pools and connections. Defaults to a built-in console logger.
 
@@ -184,7 +184,7 @@ For standalone connections (without pools):
 ```typescript
 import { RmConnection } from 'rm-mapepire-js';
 
-const conn = new RmConnection(creds, jdbcOptions, [], false, myLogger);
+const conn = new RmConnection(creds, jdbcOptions, [], 'info', myLogger);
 await conn.init();
 ```
 
@@ -209,7 +209,7 @@ const logger = winston.createLogger({
 });
 
 const pools = new RmPools({
-  debug: true,
+  logLevel: 'debug',
   logger,
   pools: [
     {
@@ -343,6 +343,7 @@ npm version major   # 0.1.0 → 1.0.0 (breaking changes)
 git push origin main --follow-tags
 
 # 4. Publish to npm
+npm login
 npm publish
 
 # 5. Return to dev

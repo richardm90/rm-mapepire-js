@@ -28,6 +28,7 @@ async function main() {
             { command: "ADDENVVAR ENVVAR(APP_ENV) VALUE('production') REPLACE(*YES)" },
             { command: "ADDENVVAR ENVVAR(REGION) VALUE('UK_SW') REPLACE(*YES)" },
             { command: 'ADDLIBLE MYLIB', type: 'cl' },
+            { command: 'CHGJOB INQMSGRPY(*DFT)' },
             // SQL statements
             { command: 'SET SCHEMA MYLIB', type: 'sql' },
           ],

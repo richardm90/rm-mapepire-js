@@ -32,7 +32,7 @@ export interface PoolOptions {
   maxSize?: number;
   initialConnections?: InitialConnections;
   incrementConnections?: IncrementConnections;
-  dbConnectorDebug?: boolean;
+  logLevel?: LogLevel;
   JDBCOptions?: JDBCOptions;
   initCommands?: InitCommand[];
   healthCheck?: HealthCheckConfig;
@@ -53,7 +53,7 @@ export interface RegisteredPool {
 
 export interface PoolsConfig {
   activate?: boolean;
-  debug?: boolean;
+  logLevel?: LogLevel;
   pools?: PoolConfig[];
   logger?: Logger;
 }
@@ -61,6 +61,8 @@ export interface PoolsConfig {
 export interface QueryOptions {
   [key: string]: any;
 }
+
+export type LogLevel = 'error' | 'info' | 'debug' | 'none';
 
 export interface Logger {
   log(level: string, message: string, meta?: any): void;

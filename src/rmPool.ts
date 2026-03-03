@@ -1,8 +1,8 @@
 import { EventEmitter } from 'events';
 import RmPoolConnection from './rmPoolConnection';
-import { PoolConfig, InitialConnections, IncrementConnections, JDBCOptions, QueryOptions, Logger, RmQueryResult } from './types';
+import { PoolConfig, InitialConnections, IncrementConnections, JDBCOptions, QueryOptions, Logger, LogLevel, RmQueryResult } from './types';
 import { DaemonServer } from '@ibm/mapepire-js';
-import defaultLogger from './logger';
+import defaultLogger, { RmLogger } from './logger';
 
 class RmPool extends EventEmitter {
   connections: RmPoolConnection[];
@@ -12,13 +12,13 @@ class RmPool extends EventEmitter {
   maxSize: number;
   initialConnections: InitialConnections;
   incrementConnections: IncrementConnections;
-  dbConnectorDebug: boolean;
   JDBCOptions: JDBCOptions;
   initCommands: any[];
   healthCheckOnAttach: boolean;
   keepaliveInterval: number | null;
-  debug: boolean;
+  logLevel: LogLevel;
   logger: Logger;
+  rmLogger: RmLogger;
 
   /**
    * Auto-incrementing counter for assigning stable connection IDs.
@@ -40,10 +40,10 @@ class RmPool extends EventEmitter {
    * Manages a list of RmPoolConnection instances.
    * Constructor to instantiate a new instance of a RmPool class given the `database` and `config`
    * @param {object} config - RmPool config object.
-   * @param {boolean} debug - Boolean, display verbose output from the application to the console.
+   * @param {LogLevel} logLevel - Log level threshold for this pool.
    * @constructor
    */
-  constructor(config: { id: string; config?: PoolConfig }, debug: boolean = false, logger?: Logger) {
+  constructor(config: { id: string; config?: PoolConfig }, logLevel: LogLevel = 'info', logger?: Logger) {
     super();
     this.connections = [];
 
@@ -65,13 +65,13 @@ class RmPool extends EventEmitter {
     this.incrementConnections = opts.incrementConnections || opts.initialConnections || {};
     this.incrementConnections.size = this.incrementConnections.size || 8;
     this.incrementConnections.expiry = this.incrementConnections.expiry || null;
-    this.dbConnectorDebug = opts.dbConnectorDebug || false;
     this.JDBCOptions = opts.JDBCOptions || {};
     this.initCommands = opts.initCommands || [];
     this.healthCheckOnAttach = opts.healthCheck?.onAttach ?? true;
     this.keepaliveInterval = opts.healthCheck?.keepalive ?? null;
-    this.debug = debug || false;
+    this.logLevel = opts.logLevel ?? logLevel;
     this.logger = logger || opts.logger || defaultLogger;
+    this.rmLogger = new RmLogger(this.logger, this.logLevel, 'RmPool', `Pool: ${this.id}`);
     this.attachQueue = Promise.resolve();
     this.nextConnectionId = 0;
   }
@@ -84,7 +84,7 @@ class RmPool extends EventEmitter {
       await this.createConnection(this.initialConnections.expiry);
     }
 
-    this.log(`Connection pool initialized`);
+    this.rmLogger.debug(`Connection pool initialized`);
     this.emit('pool:initialized', { poolId: this.id, connections: this.connections.length });
   }
 
@@ -93,7 +93,7 @@ class RmPool extends EventEmitter {
    * Assumes the database of the pool when establishing the connection.
    */
   async createConnection(expiry?: number | null): Promise<RmPoolConnection> {
-    const conn = new RmPoolConnection(this.config, this.debug, this.logger);
+    const conn = new RmPoolConnection(this.config, this.logLevel, this.logger);
 
     this.connections.push(conn);
     const poolIndex = ++this.nextConnectionId;
@@ -103,7 +103,7 @@ class RmPool extends EventEmitter {
     this.setExpiryTimer(conn);
     conn.setAvailable(true);
 
-    this.log(`Connection ${poolIndex} created, job ${conn.jobName}`);
+    this.rmLogger.debug(`Connection ${poolIndex} created, job ${conn.jobName}`);
     this.emit('connection:created', { poolId: this.id, poolIndex, jobName: conn.jobName });
 
     return conn;
@@ -174,7 +174,7 @@ class RmPool extends EventEmitter {
     } catch (error) {
       throw new Error('RmPool: Failed to detach()', { cause: error });
     }
-    this.log(`Connection ${index} detached`);
+    this.rmLogger.debug(`Connection ${index} detached`);
     this.emit('connection:detached', { poolId: this.id, poolIndex: index });
     return true;
   }
@@ -196,10 +196,10 @@ class RmPool extends EventEmitter {
         this.connections.splice(connectionIndex, 1);
       }
     } catch (error) {
-      this.log(`Failed to retire connection ${index}: ${error instanceof Error ? error.message : error}`, 'error');
+      this.rmLogger.error(`Failed to retire connection ${index}: ${error instanceof Error ? error.message : error}`);
       throw new Error(`RmPool: Failed to retire() Connection #${index}`, { cause: error });
     }
-    this.log(`Connection ${index} retired`);
+    this.rmLogger.debug(`Connection ${index} retired`);
     this.emit('connection:retired', { poolId: this.id, poolIndex: index });
   }
 
@@ -230,7 +230,7 @@ class RmPool extends EventEmitter {
     let healthCheckRetries = 0;
     const maxHealthCheckRetries = this.maxSize;
 
-    this.log('Finding available connection');
+    this.rmLogger.debug('Finding available connection');
     while (!validConnection) {
       let healthCheckFailed = false;
       for (i = 0; i < this.connections.length; i += 1) {
@@ -242,7 +242,7 @@ class RmPool extends EventEmitter {
           if (this.healthCheckOnAttach) {
             const healthy = await this.connections[i].isHealthy();
             if (!healthy) {
-              this.log(`Connection ${this.connections[i].poolIndex} failed health check, retiring`);
+              this.rmLogger.debug(`Connection ${this.connections[i].poolIndex} failed health check, retiring`);
               this.emit('connection:healthCheckFailed', { poolId: this.id, poolIndex: this.connections[i].poolIndex });
               await this.retire(this.connections[i]);
               healthCheckRetries++;
@@ -252,25 +252,25 @@ class RmPool extends EventEmitter {
               healthCheckFailed = true;
               break; // Restart search — splice shifted array indices
             } else {
-              this.log(`Connection ${this.connections[i].poolIndex} is healthy`);
+              this.rmLogger.debug(`Connection ${this.connections[i].poolIndex} is healthy`);
             }
           }
 
           validConnection = true;
-          this.log(`Connection ${this.connections[i].poolIndex} found`);
+          this.rmLogger.debug(`Connection ${this.connections[i].poolIndex} found`);
           this.emit('connection:attached', { poolId: this.id, poolIndex: this.connections[i].poolIndex });
           return this.connections[i];
         }
       }
       if (healthCheckFailed) continue;
 
-      this.log('No available connections found');
+      this.rmLogger.debug('No available connections found');
 
       let increasedConnections = 0;
       for (i = 0; i < size; i += 1) {
         if (this.connections.length >= this.maxSize) {
           const msg = `Maximum number of connections (${this.connections.length}) reached`;
-          this.log(msg);
+          this.rmLogger.debug(msg);
           this.emit('pool:exhausted', { poolId: this.id, maxSize: this.maxSize });
           if (increasedPoolSize) {
             break;
@@ -285,7 +285,7 @@ class RmPool extends EventEmitter {
       }
 
       if (increasedPoolSize) {
-        this.log(`Increased connections by ${increasedConnections} to ${this.connections.length} (total)`);
+        this.rmLogger.debug(`Increased connections by ${increasedConnections} to ${this.connections.length} (total)`);
       }
     }
 
@@ -319,7 +319,7 @@ class RmPool extends EventEmitter {
       const milliseconds = conn.expiry * 60 * 1000;
       conn.expiryTimerId = setTimeout(this.setExpired.bind(this), milliseconds, conn);
 
-      this.log(`Connection ${conn.poolIndex} expiry timer set`, 'debug');
+      this.rmLogger.debug(`Connection ${conn.poolIndex} expiry timer set`);
     }
   }
 
@@ -331,7 +331,7 @@ class RmPool extends EventEmitter {
       clearTimeout(conn.expiryTimerId);
       conn.expiryTimerId = null;
 
-      this.log(`Connection ${conn.poolIndex} expiry timer cancelled`, 'debug');
+      this.rmLogger.debug(`Connection ${conn.poolIndex} expiry timer cancelled`);
     }
   }
 
@@ -340,13 +340,13 @@ class RmPool extends EventEmitter {
    */
   async setExpired(conn: RmPoolConnection): Promise<void> {
     conn.setAvailable(false);
-    this.log(`Connection ${conn.poolIndex} expired`);
+    this.rmLogger.debug(`Connection ${conn.poolIndex} expired`);
     this.emit('connection:expired', { poolId: this.id, poolIndex: conn.poolIndex });
 
     try {
       await this.retire(conn);
     } catch (error) {
-      this.log(`Failed to retire expired connection ${conn.poolIndex}: ${error}`, 'error');
+      this.rmLogger.error(`Failed to retire expired connection ${conn.poolIndex}: ${error}`);
     }
   }
 
@@ -407,16 +407,6 @@ class RmPool extends EventEmitter {
     console.log(`  Connections: ${stats.busy}/${stats.total} busy (${stats.utilizationPercent}% utilized)`);
     console.log(`  Available: ${stats.available}`);
     console.log(`  Max Size: ${stats.maxSize}`);
-  }
-
-  /**
-   * Internal function used to log debug information to the console.
-   * @param {string} message - the message to log.
-   */
-  log(message: string = '', type: string = 'debug'): void {
-    if (type !== 'debug' || this.debug) {
-      this.logger.log(type, `Pool: ${this.id} - ${message}`, { service: 'RmPool' });
-    }
   }
 }
 

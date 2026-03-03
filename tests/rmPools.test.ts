@@ -41,17 +41,17 @@ describe('RmPools', () => {
       expect(pools).toBeInstanceOf(RmPools);
       expect(pools.pools).toEqual([]);
       expect(pools.activate).toBe(true);
-      expect(pools.debug).toBe(false);
+      expect(pools.logLevel).toBe('info');
     });
 
     it('should accept configuration options', () => {
       const pools = new RmPools({
         activate: false,
-        debug: true,
+        logLevel: 'debug',
       });
 
       expect(pools.activate).toBe(false);
-      expect(pools.debug).toBe(true);
+      expect(pools.logLevel).toBe('debug');
     });
   });
 
@@ -269,7 +269,7 @@ describe('RmPools', () => {
       const customLogger = { log: jest.fn() };
       const pools = new RmPools({
         activate: true,
-        debug: true,
+        logLevel: 'debug',
         logger: customLogger,
         pools: [mockPoolConfig],
       });
@@ -286,7 +286,7 @@ describe('RmPools', () => {
       const customLogger = { log: jest.fn() };
       const pools = new RmPools({
         activate: true,
-        debug: true,
+        logLevel: 'debug',
         logger: customLogger,
         pools: [mockPoolConfig],
       });
@@ -303,7 +303,7 @@ describe('RmPools', () => {
       const customLogger = { log: jest.fn() };
       const pools = new RmPools({
         activate: true,
-        debug: true,
+        logLevel: 'debug',
         logger: customLogger,
         pools: [mockPoolConfig],
       });
@@ -325,7 +325,7 @@ describe('RmPools', () => {
 
   describe('connectionDiag', () => {
     it('should log connection diagnostics', async () => {
-      const pools = new RmPools({ activate: true, debug: true });
+      const pools = new RmPools({ activate: true, logLevel: 'debug' });
       await pools.register(mockPoolConfig);
 
       const pool = await pools.get('test-pool-1');

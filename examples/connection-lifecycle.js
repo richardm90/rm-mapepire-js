@@ -19,7 +19,7 @@ const { RmPools } = require('rm-mapepire-js');
 
 async function main() {
   const pools = new RmPools({
-    debug: true,
+    logLevel: 'debug',
     pools: [
       {
         id: 'mydb',

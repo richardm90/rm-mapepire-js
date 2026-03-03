@@ -1,13 +1,13 @@
 import { SQLJob, JDBCOptions, DaemonServer, States } from '@ibm/mapepire-js';
-import { InitCommand, QueryOptions, Logger, RmQueryResult } from './types';
-import defaultLogger from './logger';
+import { InitCommand, QueryOptions, Logger, LogLevel, RmQueryResult } from './types';
+import defaultLogger, { RmLogger } from './logger';
 
 /**
  * Uses and Extends the Connection class implemented in idb-pconnector.
  */
 class RmConnection {
   creds: DaemonServer;
-  debug: boolean;
+  logLevel: LogLevel;
   JDBCOptions: JDBCOptions;
   initCommands: InitCommand[];
   available: boolean;
@@ -16,6 +16,7 @@ class RmConnection {
   logger: Logger;
   keepalive: number | null;
   private keepaliveTimerId: NodeJS.Timeout | null;
+  rmLogger: RmLogger;
 
   /**
    * @description
@@ -23,19 +24,20 @@ class RmConnection {
    * @param {object} creds - connection credentials
    * @param {object} JDBCOptions - JDBCOptions
    * @param {object} initCommands - commands to run on connection init
-   * @param {boolean} debug - debug
+   * @param {LogLevel} logLevel - log level
    * @param {Logger} logger - logger
    * @param {number|null} keepalive - interval in minutes to send keepalive pings (null = disabled)
    */
-  constructor(creds: DaemonServer, JDBCOptions: JDBCOptions, initCommands: InitCommand[] = [], debug: boolean = false, logger?: Logger, keepalive?: number | null) {
+  constructor(creds: DaemonServer, JDBCOptions: JDBCOptions, initCommands: InitCommand[] = [], logLevel: LogLevel = 'info', logger?: Logger, keepalive?: number | null) {
     this.creds = creds || {};
     this.JDBCOptions = JDBCOptions || {};
     this.initCommands = initCommands || [];
     this.available = false;
-    this.debug = debug || false;
+    this.logLevel = logLevel;
     this.logger = logger || defaultLogger;
     this.keepalive = keepalive ?? null;
     this.keepaliveTimerId = null;
+    this.rmLogger = new RmLogger(this.logger, this.logLevel, 'RmConnection');
   }
 
   /**
@@ -50,9 +52,10 @@ class RmConnection {
 
     // Grab IBM i job name
     this.jobName = this.job.id;
+    this.rmLogger.setPrefix(`Job: ${this.jobName}`);
 
     if (!suppressConnectionMessage)
-      this.log(`Connected`, 'info');
+      this.rmLogger.info(`Connected`);
 
     // Execute init commands on the connection (IBM i job)
     for (let i = 0; i < this.initCommands.length; i += 1) {
@@ -63,7 +66,7 @@ class RmConnection {
         } else {
           await this.job.execute(`CALL QSYS2.QCMDEXC(?)`, { parameters: [command] });
         }
-        this.log(`Executed init command (${type}): ${command}`, 'debug');
+        this.rmLogger.debug(`Executed init command (${type}): ${command}`);
       }
     }
 
@@ -99,7 +102,7 @@ class RmConnection {
     if (this.keepalive && this.keepalive > 0) {
       const ms = this.keepalive * 60 * 1000;
       this.keepaliveTimerId = setInterval(() => this.ping(), ms);
-      this.log(`Keepalive started (${this.keepalive} min)`, 'debug');
+      this.rmLogger.debug(`Keepalive started (${this.keepalive} min)`);
     }
   }
 
@@ -110,7 +113,7 @@ class RmConnection {
     if (this.keepaliveTimerId) {
       clearInterval(this.keepaliveTimerId);
       this.keepaliveTimerId = null;
-      this.log(`Keepalive stopped`, 'debug');
+      this.rmLogger.debug(`Keepalive stopped`);
     }
   }
 
@@ -133,9 +136,9 @@ class RmConnection {
   private async ping(): Promise<void> {
     try {
       await this.job.execute('VALUES 1');
-      this.log(`Keepalive ping OK`, 'debug');
+      this.rmLogger.debug(`Keepalive ping OK`);
     } catch (error) {
-      this.log(`Keepalive ping failed: ${error}`, 'error');
+      this.rmLogger.error(`Keepalive ping failed: ${error}`);
       this.stopKeepalive();
     }
   }
@@ -165,16 +168,6 @@ class RmConnection {
    */
   printInfo(): void {
     console.log('Connection Info:', JSON.stringify(this.getInfo(), null, 2));
-  }
-
-  /**
-   * Internal function used to log debug information to the console.
-   * @param {string} message - the message to log.
-   */
-  log(message: string = '', type: string = 'debug'): void {
-    if (type !== 'debug' || this.debug) {
-      this.logger.log(type, `Job: ${this.jobName} - ${message}`, { service: 'RmConnection' });
-    }
   }
 }
 

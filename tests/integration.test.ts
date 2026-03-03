@@ -6,7 +6,7 @@ describe('Integration Tests', () => {
     it('should manage multiple pools and connections', async () => {
       // Create pools manager
       const pools = new RmPools({
-        debug: false,
+        logLevel: 'info',
         activate: true,
         pools: [
           {

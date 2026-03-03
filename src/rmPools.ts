@@ -1,28 +1,30 @@
 import RmPool from './rmPool';
 import RmPoolConnection from './rmPoolConnection';
-import { PoolsConfig, PoolConfig, RegisteredPool, Logger } from './types';
-import defaultLogger from './logger';
+import { PoolsConfig, PoolConfig, RegisteredPool, Logger, LogLevel } from './types';
+import defaultLogger, { RmLogger } from './logger';
 
 const MAX_POOLS = 8;
 
 class RmPools {
   config: PoolsConfig;
   activate: boolean;
-  debug: boolean;
+  logLevel: LogLevel;
   pools: RegisteredPool[];
   logger: Logger;
+  rmLogger: RmLogger;
 
   /**
    * Manages a list of RmPool instances.
    * Constructor to instantiate a new instance of a RmPools class
-   * @param {object} config - Object includes `debug`.
+   * @param {object} config - Object includes `logLevel`.
    * @constructor
    */
   constructor(config: PoolsConfig = {}) {
     this.config = config;
     this.activate = this.config.activate ?? true;
-    this.debug = this.config.debug || false;
+    this.logLevel = this.config.logLevel || 'info';
     this.logger = this.config.logger || defaultLogger;
+    this.rmLogger = new RmLogger(this.logger, this.logLevel, 'RmPools');
 
     this.pools = [];
   }
@@ -48,13 +50,13 @@ class RmPools {
 
     for (let i = 0; i < poolsLength; i += 1) {
       if (this.pools[i].id === poolToReg.id) {
-        this.log(`Unable to register pool as ${poolToReg.id} is already registered.`);
+        this.rmLogger.debug(`Unable to register pool as ${poolToReg.id} is already registered.`);
         return false;
       }
     }
 
     if (poolsLength >= MAX_POOLS) {
-      this.log(`Unable to register pool ${poolToReg.id} as the maximum number of pools has been reached.`);
+      this.rmLogger.debug(`Unable to register pool ${poolToReg.id} as the maximum number of pools has been reached.`);
       return false;
     }
 
@@ -65,7 +67,7 @@ class RmPools {
     };
 
     this.pools.push(pool);
-    this.log(`Pool ${pool.id} registered`);
+    this.rmLogger.debug(`Pool ${pool.id} registered`);
 
     if (this.activate) {
       await this.activatePool(pool);
@@ -86,24 +88,24 @@ class RmPools {
     let i: number;
 
     if (this.pools.length < 1) {
-      this.log(`No pools registered, pool ${poolId} not found`);
+      this.rmLogger.debug(`No pools registered, pool ${poolId} not found`);
       return null;
     }
 
     if (!poolId) poolId = this.pools[0].id;
 
-    this.log(`Finding pool ${poolId}`);
+    this.rmLogger.debug(`Finding pool ${poolId}`);
     for (i = 0; i < this.pools.length; i += 1) {
       pool = this.pools[i];
 
       if (pool.id === poolId) {
-        this.log(`Pool ${poolId} (index=${i}) found`);
+        this.rmLogger.debug(`Pool ${poolId} (index=${i}) found`);
         if (!pool.active) await this.activatePool(pool);
         return pool.rmPool!;
       }
     }
 
-    this.log(`Pool ${poolId} not found`);
+    this.rmLogger.debug(`Pool ${poolId} not found`);
     return null;
   }
 
@@ -137,7 +139,7 @@ class RmPools {
    * @param {string} sql - SQL statement
    */
   async connectionDiag(poolId: string | undefined, dbconnection: RmPoolConnection, sql: string): Promise<void> {
-    this.log(`connectionDiag(): Data source=${this.sanitizePoolId(poolId)} Connection index=${dbconnection.poolIndex} Connection job name=${dbconnection.jobName} Sql=${sql}`);
+    this.rmLogger.debug(`connectionDiag(): Data source=${this.sanitizePoolId(poolId)} Connection index=${dbconnection.poolIndex} Connection job name=${dbconnection.jobName} Sql=${sql}`);
   }
 
   /**
@@ -202,7 +204,7 @@ class RmPools {
       if (pool.active && pool.rmPool) {
         await pool.rmPool.close();
         pool.active = false;
-        this.log(`Pool ${pool.id} closed`, 'info');
+        this.rmLogger.info(`Pool ${pool.id} closed`);
       }
     }
     return true;
@@ -212,20 +214,10 @@ class RmPools {
    * Internal function to activate a pool
    */
   async activatePool(pool: RegisteredPool): Promise<void> {
-    pool.rmPool = new RmPool(pool, this.debug, this.logger);
+    pool.rmPool = new RmPool(pool, this.logLevel, this.logger);
     await pool.rmPool.init();
     pool.active = true;
-    this.log(`Pool ${pool.id} activated`, 'info');
-  }
-
-  /**
-   * Internal function used to log debug information to the console.
-   * @param {string} message - the message to log.
-   */
-  log(message: string = '', type: string = 'debug'): void {
-    if (type !== 'debug' || this.debug) {
-      this.logger.log(type, `${message}`, { service: 'RmPools' });
-    }
+    this.rmLogger.info(`Pool ${pool.id} activated`);
   }
 }
 

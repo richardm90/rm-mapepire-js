@@ -1,7 +1,7 @@
 import RmConnection from './rmConnection';
 import { JDBCOptions, DaemonServer, States } from '@ibm/mapepire-js';
-import { PoolConfig, InitCommand, QueryOptions, Logger, RmQueryResult } from './types';
-import defaultLogger from './logger';
+import { PoolConfig, InitCommand, QueryOptions, Logger, LogLevel, RmQueryResult } from './types';
+import defaultLogger, { RmLogger } from './logger';
 
 /**
  * Uses and Extends the Connection class implemented in idb-pconnector.
@@ -10,7 +10,7 @@ class RmPoolConnection {
   poolId: string;
   poolIndex: number | null;
   creds: DaemonServer;
-  debug: boolean;
+  logLevel: LogLevel;
   JDBCOptions: JDBCOptions;
   initCommands: InitCommand[];
   available: boolean;
@@ -20,24 +20,25 @@ class RmPoolConnection {
   expiry?: number | null;
   keepalive: number | null;
   logger: Logger;
+  rmLogger: RmLogger;
 
   /**
    * @description
    * Instantiates a new instance of a RmPoolConnection class.
    * @param {object} pool - Pool configuration.
    */
-  constructor(pool: PoolConfig, debug: boolean = false, logger?: Logger) {
+  constructor(pool: PoolConfig, logLevel: LogLevel = 'info', logger?: Logger) {
     this.poolId = pool.id;
     this.poolIndex = null;
     this.creds = pool.PoolOptions.creds;
-    this.debug = pool.PoolOptions?.dbConnectorDebug || false;
+    this.logLevel = logLevel;
     this.JDBCOptions = pool.PoolOptions?.JDBCOptions || {};
     this.initCommands = pool.PoolOptions?.initCommands || [];
     this.available = false;
     this.expiryTimerId = null;
     this.keepalive = pool.PoolOptions?.healthCheck?.keepalive ?? null;
-    this.debug = debug || false;
     this.logger = logger || pool.PoolOptions?.logger || defaultLogger;
+    this.rmLogger = new RmLogger(this.logger, this.logLevel, 'RmPoolConnection', `Pool: ${this.poolId}`);
   }
 
   /**
@@ -45,15 +46,16 @@ class RmPoolConnection {
    */
   async init(poolIndex: number): Promise<void> {
     this.poolIndex = poolIndex;
+    this.rmLogger.setPrefix(`Pool: ${this.poolId} Connection: ${this.poolIndex}`);
 
-    this.connection = new RmConnection(this.creds, this.JDBCOptions, this.initCommands, this.debug, this.logger, this.keepalive);
+    this.connection = new RmConnection(this.creds, this.JDBCOptions, this.initCommands, this.logLevel, this.logger, this.keepalive);
 
     await this.connection.init(true);
 
     // Grab IBM i job name
     this.jobName = this.connection.jobName;
 
-    this.log(`Initialized, job name=${this.jobName}`, 'info');
+    this.rmLogger.info(`Initialized, job name=${this.jobName}`);
 
     // Output connection details in IBM i joblog
     const projectPrefix = process.env.PROJECT_NAME ? `${process.env.PROJECT_NAME}: ` : '';
@@ -62,7 +64,7 @@ class RmPoolConnection {
   }
 
   async query(sql: string, opts: QueryOptions = {}): Promise<RmQueryResult<any>> {
-    this.log(`Executing query on connection ${this.poolIndex}`);
+    this.rmLogger.debug(`Executing query on connection ${this.poolIndex}`);
     const result = await this.connection.execute(sql, opts);
     return result;
   }
@@ -105,7 +107,7 @@ class RmPoolConnection {
       await this.connection.execute('VALUES 1');
       return true;
     } catch (error) {
-      this.log(`Health check failed: ${error}`, 'error');
+      this.rmLogger.error(`Health check failed: ${error}`);
       return false;
     }
   }
@@ -153,16 +155,6 @@ class RmPoolConnection {
    */
   printInfo(): void {
     console.log('Connection Info:', JSON.stringify(this.getInfo(), null, 2));
-  }
-
-  /**
-   * Internal function used to log debug information to the console.
-   * @param {string} message - the message to log.
-   */
-  log(message: string = '', type: string = 'debug'): void {
-    if (type !== 'debug' || this.debug) {
-      this.logger.log(type, `Pool: ${this.poolId} Connection: ${this.poolIndex} - ${message}`, { service: 'RmPoolConnection' });
-    }
   }
 }
 

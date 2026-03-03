@@ -17,7 +17,7 @@ const { RmPools } = require('rm-mapepire-js');
 async function main() {
   // Health check enabled (default behaviour)
   const pools = new RmPools({
-    debug: true,
+    logLevel: 'debug',
     pools: [
       {
         id: 'mydb',
@@ -63,7 +63,7 @@ async function disabledExample() {
   // Health check disabled — for environments where the extra
   // round-trip per attach is not acceptable.
   const pools = new RmPools({
-    debug: true,
+    logLevel: 'debug',
     pools: [
       {
         id: 'mydb',
