@@ -1,14 +1,13 @@
 import { EventEmitter } from 'events';
 import RmPoolConnection from './rmPoolConnection';
-import { PoolConfig, InitialConnections, IncrementConnections, JDBCOptions, QueryOptions, Logger, LogLevel, RmQueryResult } from './types';
-import { DaemonServer } from '@ibm/mapepire-js';
+import { PoolConfig, InitialConnections, IncrementConnections, JDBCOptions, DaemonServer, QueryOptions, Logger, LogLevel, RmQueryResult } from './types';
 import defaultLogger, { RmLogger } from './logger';
 
 class RmPool extends EventEmitter {
   connections: RmPoolConnection[];
   id: string;
   config: PoolConfig;
-  creds: DaemonServer;
+  creds?: DaemonServer;
   maxSize: number;
   initialConnections: InitialConnections;
   incrementConnections: IncrementConnections;

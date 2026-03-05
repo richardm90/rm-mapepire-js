@@ -10,7 +10,6 @@ describe('RmConnection', () => {
     user: 'test-user',
     password: 'test-password',
   };
-  const mockJDBCOptions = {};
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -18,7 +17,7 @@ describe('RmConnection', () => {
 
   describe('constructor', () => {
     it('should create a new RmConnection instance', () => {
-      const conn = new RmConnection(mockCreds, mockJDBCOptions);
+      const conn = new RmConnection({ creds: mockCreds });
 
       expect(conn).toBeInstanceOf(RmConnection);
       expect(conn.creds).toEqual(mockCreds);
@@ -30,26 +29,35 @@ describe('RmConnection', () => {
 
     it('should accept initCommands and logLevel parameters', () => {
       const initCommands: InitCommand[] = [{ command: 'CHGLIBL LIBL(MYLIB QGPL)' }];
-      const conn = new RmConnection(mockCreds, mockJDBCOptions, initCommands, 'debug');
+      const conn = new RmConnection({ creds: mockCreds, initCommands, logLevel: 'debug' });
 
       expect(conn.initCommands).toEqual(initCommands);
       expect(conn.logLevel).toBe('debug');
+    });
+
+    it('should default backend to auto', () => {
+      const conn = new RmConnection({ creds: mockCreds });
+      expect(conn.backend).toBe('auto');
+    });
+
+    it('should accept explicit backend option', () => {
+      const conn = new RmConnection({ creds: mockCreds, backend: 'mapepire' });
+      expect(conn.backend).toBe('mapepire');
     });
   });
 
   describe('init', () => {
     it('should initialize the connection and set job name', async () => {
-      const conn = new RmConnection(mockCreds, mockJDBCOptions);
+      const conn = new RmConnection({ creds: mockCreds });
       await conn.init();
 
-      expect(conn.job).toBeDefined();
       expect(conn.jobName).toBeDefined();
       expect(conn.getStatus()).toBe(States.JobStatus.READY);
     });
 
     it('should connect if status is NOT_STARTED', async () => {
       const connectSpy = jest.spyOn(SQLJob.prototype, 'connect');
-      const conn = new RmConnection(mockCreds, mockJDBCOptions);
+      const conn = new RmConnection({ creds: mockCreds });
       await conn.init();
 
       expect(connectSpy).toHaveBeenCalledWith(mockCreds);
@@ -57,16 +65,21 @@ describe('RmConnection', () => {
     });
 
     it('should suppress connection log message when flag is set', async () => {
-      const conn = new RmConnection(mockCreds, mockJDBCOptions);
+      const conn = new RmConnection({ creds: mockCreds });
       // Should not throw when called with true
       await conn.init(true);
       expect(conn.jobName).toBeDefined();
     });
 
+    it('should throw if creds missing for mapepire backend', async () => {
+      const conn = new RmConnection({ backend: 'mapepire' });
+      await expect(conn.init()).rejects.toThrow('creds are required');
+    });
+
     it('should execute CL init commands via parameterized QCMDEXC', async () => {
       const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
       const initCommands: InitCommand[] = [{ command: 'CHGLIBL LIBL(MYLIB QGPL)' }];
-      const conn = new RmConnection(mockCreds, mockJDBCOptions, initCommands);
+      const conn = new RmConnection({ creds: mockCreds, initCommands });
 
       await conn.init();
 
@@ -83,7 +96,7 @@ describe('RmConnection', () => {
     it('should default to cl type when not specified', async () => {
       const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
       const initCommands: InitCommand[] = [{ command: 'ADDLIBLE MYLIB' }];
-      const conn = new RmConnection(mockCreds, mockJDBCOptions, initCommands);
+      const conn = new RmConnection({ creds: mockCreds, initCommands });
 
       await conn.init();
 
@@ -100,7 +113,7 @@ describe('RmConnection', () => {
     it('should execute SQL init commands directly', async () => {
       const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
       const initCommands: InitCommand[] = [{ command: 'SET SCHEMA MYLIB', type: 'sql' }];
-      const conn = new RmConnection(mockCreds, mockJDBCOptions, initCommands);
+      const conn = new RmConnection({ creds: mockCreds, initCommands });
 
       await conn.init();
 
@@ -113,7 +126,7 @@ describe('RmConnection', () => {
     it('should skip init commands with empty command', async () => {
       const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
       const initCommands: InitCommand[] = [{ command: '' }];
-      const conn = new RmConnection(mockCreds, mockJDBCOptions, initCommands);
+      const conn = new RmConnection({ creds: mockCreds, initCommands });
 
       await conn.init();
 
@@ -129,7 +142,7 @@ describe('RmConnection', () => {
         { command: 'CHGLIBL LIBL(MYLIB QGPL)', type: 'cl' },
         { command: 'SET SCHEMA MYLIB', type: 'sql' },
       ];
-      const conn = new RmConnection(mockCreds, mockJDBCOptions, initCommands);
+      const conn = new RmConnection({ creds: mockCreds, initCommands });
 
       await conn.init();
 
@@ -148,7 +161,7 @@ describe('RmConnection', () => {
 
   describe('execute', () => {
     it('should execute SQL and return result', async () => {
-      const conn = new RmConnection(mockCreds, mockJDBCOptions);
+      const conn = new RmConnection({ creds: mockCreds });
       await conn.init();
 
       const result = await conn.execute('SELECT * FROM TEST');
@@ -159,7 +172,7 @@ describe('RmConnection', () => {
 
     it('should pass options to the underlying job', async () => {
       const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
-      const conn = new RmConnection(mockCreds, mockJDBCOptions);
+      const conn = new RmConnection({ creds: mockCreds });
       await conn.init();
 
       const opts = { parameters: [1, 2] };
@@ -177,7 +190,7 @@ describe('RmConnection', () => {
 
   describe('query', () => {
     it('should execute SQL via query and return result', async () => {
-      const conn = new RmConnection(mockCreds, mockJDBCOptions);
+      const conn = new RmConnection({ creds: mockCreds });
       await conn.init();
 
       const result = await conn.query('SELECT 1 FROM SYSIBM.SYSDUMMY1');
@@ -190,7 +203,7 @@ describe('RmConnection', () => {
   describe('close', () => {
     it('should close the underlying job', async () => {
       const closeSpy = jest.spyOn(SQLJob.prototype, 'close');
-      const conn = new RmConnection(mockCreds, mockJDBCOptions);
+      const conn = new RmConnection({ creds: mockCreds });
       await conn.init();
 
       await conn.close();
@@ -204,14 +217,14 @@ describe('RmConnection', () => {
 
   describe('getStatus', () => {
     it('should return READY after init', async () => {
-      const conn = new RmConnection(mockCreds, mockJDBCOptions);
+      const conn = new RmConnection({ creds: mockCreds });
       await conn.init();
 
       expect(conn.getStatus()).toBe(States.JobStatus.READY);
     });
 
     it('should return ENDED after close', async () => {
-      const conn = new RmConnection(mockCreds, mockJDBCOptions);
+      const conn = new RmConnection({ creds: mockCreds });
       await conn.init();
       await conn.close();
 
@@ -222,7 +235,7 @@ describe('RmConnection', () => {
   describe('logger injection', () => {
     it('should use custom logger when provided', async () => {
       const customLogger = { log: jest.fn() };
-      const conn = new RmConnection(mockCreds, mockJDBCOptions, [], 'debug', customLogger);
+      const conn = new RmConnection({ creds: mockCreds, logLevel: 'debug', logger: customLogger });
       await conn.init();
 
       expect(customLogger.log).toHaveBeenCalled();
@@ -232,14 +245,14 @@ describe('RmConnection', () => {
     });
 
     it('should use default logger when none provided', () => {
-      const conn = new RmConnection(mockCreds, mockJDBCOptions);
+      const conn = new RmConnection({ creds: mockCreds });
       expect(conn.logger).toBeDefined();
     });
   });
 
   describe('getInfo', () => {
     it('should return connection information', async () => {
-      const conn = new RmConnection(mockCreds, mockJDBCOptions);
+      const conn = new RmConnection({ creds: mockCreds });
       await conn.init();
 
       const info = conn.getInfo() as any;
@@ -260,7 +273,7 @@ describe('RmConnection', () => {
     });
 
     it('should start keepalive timer when configured', async () => {
-      const conn = new RmConnection(mockCreds, mockJDBCOptions, [], 'info', undefined, 5);
+      const conn = new RmConnection({ creds: mockCreds, keepalive: 5 });
       await conn.init();
 
       const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
@@ -280,7 +293,7 @@ describe('RmConnection', () => {
     });
 
     it('should not start keepalive timer when not configured', async () => {
-      const conn = new RmConnection(mockCreds, mockJDBCOptions);
+      const conn = new RmConnection({ creds: mockCreds });
       await conn.init();
 
       const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
@@ -298,7 +311,7 @@ describe('RmConnection', () => {
     });
 
     it('should not start keepalive timer when set to null', async () => {
-      const conn = new RmConnection(mockCreds, mockJDBCOptions, [], 'info', undefined, null);
+      const conn = new RmConnection({ creds: mockCreds, keepalive: null });
       await conn.init();
 
       const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
@@ -316,7 +329,7 @@ describe('RmConnection', () => {
     });
 
     it('should send multiple pings over multiple intervals', async () => {
-      const conn = new RmConnection(mockCreds, mockJDBCOptions, [], 'info', undefined, 2);
+      const conn = new RmConnection({ creds: mockCreds, keepalive: 2 });
       await conn.init();
 
       const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
@@ -335,7 +348,7 @@ describe('RmConnection', () => {
     });
 
     it('should reset keepalive timer when execute is called', async () => {
-      const conn = new RmConnection(mockCreds, mockJDBCOptions, [], 'info', undefined, 5);
+      const conn = new RmConnection({ creds: mockCreds, keepalive: 5 });
       await conn.init();
 
       const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
@@ -361,7 +374,7 @@ describe('RmConnection', () => {
     });
 
     it('should stop keepalive timer on close', async () => {
-      const conn = new RmConnection(mockCreds, mockJDBCOptions, [], 'info', undefined, 5);
+      const conn = new RmConnection({ creds: mockCreds, keepalive: 5 });
       await conn.init();
 
       const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
@@ -381,7 +394,7 @@ describe('RmConnection', () => {
     });
 
     it('should stop keepalive timer when ping fails', async () => {
-      const conn = new RmConnection(mockCreds, mockJDBCOptions, [], 'info', undefined, 5);
+      const conn = new RmConnection({ creds: mockCreds, keepalive: 5 });
       await conn.init();
 
       const executeSpy = jest.spyOn(SQLJob.prototype, 'execute');
