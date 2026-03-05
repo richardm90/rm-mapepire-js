@@ -1,7 +1,7 @@
 {
-  "name": "rm-mapepire-js",
-  "description": "Wrapper over the IBM Mapepire DB2 client for Node.js",
-  "version": "0.4.0",
+  "name": "rm-connector-js",
+  "description": "IBM i DB2 connector for Node.js — supports mapepire (remote) and idb-pconnector (native) backends",
+  "version": "1.0.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -33,12 +33,12 @@
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/richardm90/rm-mapepire-js.git"
+    "url": "git+https://github.com/richardm90/rm-connector-js.git"
   },
   "bugs": {
-    "url": "https://github.com/richardm90/rm-mapepire-js/issues"
+    "url": "https://github.com/richardm90/rm-connector-js/issues"
   },
-  "homepage": "https://github.com/richardm90/rm-mapepire-js#readme",
+  "homepage": "https://github.com/richardm90/rm-connector-js#readme",
   "dependencies": {
     "@ibm/mapepire-js": "^0.6.0"
   },
