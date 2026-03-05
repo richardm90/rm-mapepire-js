@@ -6,7 +6,7 @@
  * and allows you to execute CL commands via SQL.
  */
 
-const { RmPools } = require('rm-mapepire-js');
+const { RmPools } = require('rm-connector-js');
 
 async function main() {
   const pools = new RmPools({
@@ -54,7 +54,7 @@ async function main() {
 
   // Call QSYS2.QCMDEXC to send a message
   await conn.query('CALL QSYS2.QCMDEXC(?)', {
-    parameters: [`SNDMSG MSG('Hello from rm-mapepire-js') TOUSR(${user})`],
+    parameters: [`SNDMSG MSG('Hello from rm-connector-js') TOUSR(${user})`],
   });
   console.log('Message sent');
 

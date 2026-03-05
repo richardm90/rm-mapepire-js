@@ -1,11 +1,11 @@
 # Debugging and Monitoring Guide
 
-This guide shows you how to use the built-in debug and monitoring features in `rm-mapepire-js`.
+This guide shows you how to use the built-in debug and monitoring features in `rm-connector-js`.
 
 ## Quick Start
 
 ```typescript
-import { RmPools } from 'rm-mapepire-js';
+import { RmPools } from 'rm-connector-js';
 
 const pools = new RmPools({
   debug: true,  // Enable debug logging

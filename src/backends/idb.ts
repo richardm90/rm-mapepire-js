@@ -26,9 +26,8 @@ interface IdbStatement {
   close(): void;
 }
 
-// SQL_ATTR_COMMIT constants
-const SQL_ATTR_COMMIT = 0;
-const SQL_TXN_NO_COMMIT = 0;
+// SQL_ATTR_COMMIT and SQL_TXN_NO_COMMIT are loaded dynamically from
+// idb-pconnector (re-exported from idb-connector) to avoid hardcoding values.
 
 export class IdbBackend implements BackendConnection {
   private conn!: IdbConnection;
@@ -57,11 +56,11 @@ export class IdbBackend implements BackendConnection {
       );
     }
 
-    const { Connection } = this.IdbModule;
+    const { Connection, SQL_ATTR_COMMIT, SQL_TXN_NO_COMMIT } = this.IdbModule;
     this.conn = new Connection({ url: '*LOCAL' });
     this.status = 'connecting';
 
-    // Must set commit mode before any statement creation
+    // Disable commitment control before any statement creation
     this.conn.dbconn.setConnAttr(SQL_ATTR_COMMIT, SQL_TXN_NO_COMMIT);
 
     this.status = 'ready';
@@ -96,11 +95,14 @@ export class IdbBackend implements BackendConnection {
   async execute(sql: string, opts: QueryOptions = {}): Promise<RmQueryResult<any>> {
     const startTime = performance.now();
     let data: any[];
+    let outputParms: any[] | null = null;
     let updateCount = 0;
 
     try {
       if (opts.parameters && opts.parameters.length > 0) {
-        data = await this.execParameterized(sql, opts.parameters);
+        const result = await this.execParameterized(sql, opts.parameters);
+        data = result.data;
+        outputParms = result.outputParms;
       } else {
         data = await this.execSimple(sql);
       }
@@ -109,7 +111,7 @@ export class IdbBackend implements BackendConnection {
       data = data.map(row => {
         const trimmed: Record<string, any> = {};
         for (const key of Object.keys(row)) {
-          trimmed[key] = typeof row[key] === 'string' ? row[key].trim() : row[key];
+          trimmed[key] = typeof row[key] === 'string' ? row[key].trimEnd() : row[key];
         }
         return trimmed;
       });
@@ -117,7 +119,7 @@ export class IdbBackend implements BackendConnection {
       const executionTime = performance.now() - startTime;
       this.queryCounter++;
 
-      return {
+      const result: RmQueryResult<any> = {
         success: true,
         data,
         has_results: data.length > 0,
@@ -130,8 +132,17 @@ export class IdbBackend implements BackendConnection {
         job: this.jobName!,
         metadata: null as any,
       };
+
+      // Include output parameters if returned (e.g. from stored procedures)
+      if (outputParms) {
+        (result as any).output_parms = outputParms.map((value, i) => ({
+          index: i + 1,
+          value: typeof value === 'string' ? value.trimEnd() : value,
+        }));
+      }
+
+      return result;
     } catch (error) {
-      const executionTime = performance.now() - startTime;
       this.queryCounter++;
       throw error;
     }
@@ -166,15 +177,26 @@ export class IdbBackend implements BackendConnection {
     }
   }
 
-  private async execParameterized(sql: string, params: any[]): Promise<any[]> {
+  private async execParameterized(sql: string, params: any[]): Promise<{ data: any[]; outputParms: any[] | null }> {
     const stmt = this.conn.getStatement();
     try {
       stmt.enableNumericTypeConversion(true);
       await stmt.prepare(sql);
       await stmt.bindParameters(params);
-      await stmt.execute();
-      const result = await stmt.fetchAll();
-      return result;
+      // execute() returns output parameters as an array at runtime, but is typed as void
+      const outputParms = (await stmt.execute() as any) || null;
+      let data: any[];
+      try {
+        data = await stmt.fetchAll();
+      } catch (e: any) {
+        // Statements like CALL QSYS2.QCMDEXC(?) don't produce a result set
+        if (e?.message?.includes('no result set') || e?.sqlcode === 8014) {
+          data = [];
+        } else {
+          throw e;
+        }
+      }
+      return { data, outputParms };
     } finally {
       stmt.close();
     }
@@ -187,15 +209,19 @@ export class IdbBackend implements BackendConnection {
       const libs = Array.isArray(opts.libraries) ? opts.libraries : [opts.libraries];
       if (libs.length > 0) {
         const pathList = ['SYSTEM PATH', ...libs].join(', ');
-        await this.execSimple(`SET PATH = ${pathList}`);
+        // Use prepare/execute path for SET statements (stmt.exec rejects some SET variants)
+        await this.execParameterized(`SET PATH = ${pathList}`, []);
         this.rmLogger.debug(`Set library path: ${pathList}`);
       }
     }
 
     if (opts.naming) {
-      const naming = opts.naming === 'system' ? '*SYS' : '*SQL';
-      await this.execSimple(`SET OPTION NAMING = ${naming}`);
-      this.rmLogger.debug(`Set naming: ${naming}`);
+      // SET OPTION NAMING is not allowed via exec() or prepare()/execute() in idb-pconnector.
+      // Use setConnAttr with SQL_ATTR_DBC_SYS_NAMING instead.
+      const SQL_ATTR_DBC_SYS_NAMING = this.IdbModule.SQL_ATTR_DBC_SYS_NAMING ?? 0x10012;
+      const value = opts.naming === 'system' ? 1 : 0;
+      this.conn.dbconn.setConnAttr(SQL_ATTR_DBC_SYS_NAMING, value);
+      this.rmLogger.debug(`Set naming: ${opts.naming === 'system' ? '*SYS' : '*SQL'}`);
     }
 
     // Log warnings for other JDBC options that don't map to idb

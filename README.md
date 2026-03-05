@@ -1,12 +1,19 @@
-# rm-mapepire-js
+# rm-connector-js
 
-A TypeScript wrapper over the IBM Mapepire DB2 client for Node.js, providing connection pooling and management for IBM i databases.
+An IBM i DB2 connector for Node.js, supporting both remote (mapepire/WebSocket) and native (idb-pconnector/ODBC) backends with connection pooling and management.
 
-## Why rm-mapepire-js?
+## Why rm-connector-js?
 
-The base `@ibm/mapepire-js` package provides a WebSocket-based DB2 client for IBM i — but it leaves connection lifecycle management, pooling strategy, and production concerns up to you. **rm-mapepire-js** builds on top of it to deliver a production-ready experience:
+**rm-connector-js** provides a production-ready DB2 connection layer for IBM i with two interchangeable backends:
 
-- **Enterprise Connection Pooling** — Auto-scaling pools with configurable min/max sizing, on-demand growth, and batch connection creation. The base package has a basic pool; this library adds tiered connection management with separate policies for initial vs. overflow connections.
+- **mapepire** — Remote connections via WebSocket using `@ibm/mapepire-js`. Works from any platform.
+- **idb-pconnector** — Native ODBC connections using `idb-pconnector`. Runs directly on IBM i with no WebSocket overhead.
+
+Both backends share the same API, so your application code works unchanged regardless of where it runs.
+
+On top of the backend abstraction, the library delivers:
+
+- **Enterprise Connection Pooling** — Auto-scaling pools with configurable min/max sizing, on-demand growth, and parallel batch connection creation. Tiered connection management with separate policies for initial vs. overflow connections.
 
 - **Automatic Connection Expiry** — Idle overflow connections are automatically retired after a configurable timeout, freeing IBM i jobs during low-activity periods. Initial connections can be set to persist indefinitely.
 
@@ -29,21 +36,67 @@ The base `@ibm/mapepire-js` package provides a WebSocket-based DB2 client for IB
 ## Installation
 
 ```bash
-npm install rm-mapepire-js
+npm install rm-connector-js
 ```
 
 ### Prerequisites
 
-This package requires a Mapepire server running on your IBM i. See [@ibm/mapepire-js](https://www.npmjs.com/package/@ibm/mapepire-js) for details.
+- **Remote connections (mapepire):** Requires a Mapepire server running on your IBM i. See [@ibm/mapepire-js](https://www.npmjs.com/package/@ibm/mapepire-js) for details.
+- **Native connections (idb):** Requires running on IBM i with `idb-pconnector` available (included as an optional dependency).
 
 ### Install from GitHub (alternative)
 
 ```bash
 # Latest stable release
-npm install github:richardm90/rm-mapepire-js#main
+npm install github:richardm90/rm-connector-js#main
 
 # Development branch
-npm install github:richardm90/rm-mapepire-js#dev
+npm install github:richardm90/rm-connector-js#dev
+```
+
+## Backend Selection
+
+The `backend` option controls which driver is used:
+
+| Value | Behaviour |
+|-------|-----------|
+| `'auto'` (default) | Uses `idb` on IBM i (`process.platform === 'os400'`), `mapepire` elsewhere |
+| `'mapepire'` | Always use mapepire (remote WebSocket) |
+| `'idb'` | Always use idb-pconnector (native IBM i ODBC) |
+
+### Pooled connections
+
+```typescript
+const pools = new RmPools({
+  pools: [{
+    id: 'myPool',
+    PoolOptions: {
+      backend: 'auto',  // or 'mapepire' or 'idb'
+      creds: { host: '...', user: '...', password: '...' },  // required for mapepire
+    }
+  }]
+});
+```
+
+### Standalone connections
+
+```typescript
+// Remote (mapepire)
+const conn = new RmConnection({
+  backend: 'mapepire',
+  creds: { host: '...', user: '...', password: '...' },
+});
+
+// Native (idb) — no creds needed, connects to *LOCAL
+const conn = new RmConnection({
+  backend: 'idb',
+});
+
+// Auto-detect
+const conn = new RmConnection({
+  backend: 'auto',
+  creds: { host: '...', user: '...', password: '...' },  // used if mapepire is selected
+});
 ```
 
 ## Usage
@@ -51,7 +104,7 @@ npm install github:richardm90/rm-mapepire-js#dev
 ### Basic Setup
 
 ```typescript
-import { RmPools } from 'rm-mapepire-js';
+import { RmPools } from 'rm-connector-js';
 
 const poolsConfig = {
   logLevel: 'debug',
@@ -123,11 +176,29 @@ const result = await connection.query('SELECT * FROM MY_TABLE');
 await pool.detach(connection);
 ```
 
+### Standalone Connection
+
+For simple scripts or one-off queries without pooling:
+
+```typescript
+import { RmConnection } from 'rm-connector-js';
+
+const conn = new RmConnection({
+  creds: { host: '...', user: '...', password: '...' },
+  initCommands: [{ command: 'ADDLIBLE MYLIB', type: 'cl' }],
+});
+
+await conn.init();
+const result = await conn.execute('SELECT * FROM MY_TABLE');
+await conn.close();
+```
+
 ### Configuration Options
 
 #### Pool Options
 
-- `creds`: Database credentials object - a standard Mapepire DaemonServer object
+- `backend`: Backend driver: `'auto'` | `'mapepire'` | `'idb'` (default: `'auto'`)
+- `creds`: Database credentials object - a standard Mapepire DaemonServer object (required for mapepire backend)
 - `maxSize`: Maximum number of connections in the pool (default: 20)
 - `initialConnections`: Initial connection settings
   - `size`: Number of connections to create on initialization (default: 8)
@@ -136,11 +207,11 @@ await pool.detach(connection);
   - `size`: Number of connections to add when pool is exhausted (default: 8)
   - `expiry`: Expiry time for new connections in minutes (same rules as above)
 - `logLevel`: Log level threshold for this pool: `'error'` | `'info'` | `'debug'` | `'none'` (overrides the global `logLevel` from Pools Options)
-- `JDBCOptions`: JDBC options object - a standard Mapepire JDBCOptions object
-- `initCommands`: Array of commands to execute when each connection is initialized. Each entry is an object with `command` (string) and optional `type` (`'cl'` or `'sql'`, defaults to `'cl'`). CL commands are executed via `QCMDEXC` with parameterised input; SQL commands are executed directly via `job.execute()` without parameterisation. **Security note:** SQL-type init commands must be trusted, developer-supplied strings — never pass unsanitised user input as an init command.
+- `JDBCOptions`: JDBC options object. For mapepire backend, this is a standard Mapepire JDBCOptions object. For idb backend, `libraries` and `naming` are supported.
+- `initCommands`: Array of commands to execute when each connection is initialized. Each entry is an object with `command` (string) and optional `type` (`'cl'` or `'sql'`, defaults to `'cl'`). CL commands are executed via `QCMDEXC` with parameterised input; SQL commands are executed directly without parameterisation. **Security note:** SQL-type init commands must be trusted, developer-supplied strings — never pass unsanitised user input as an init command.
 - `healthCheck`: Health check settings
   - `onAttach`: Verify connections are alive before returning from `attach()` by executing a lightweight query (`VALUES 1`). Unhealthy connections are automatically retired and replaced. (default: `true`). Set to `false` to disable.
-  - `keepalive`: Interval in minutes to send keepalive pings (`VALUES 1`) on idle connections, preventing WebSocket connections from being dropped by firewalls or network intermediaries. The timer resets whenever a real query is executed. If a keepalive ping fails, the timer stops and the connection will be retired on the next `attach()` health check. (default: `null` = disabled). Recommended: `5` for most environments.
+  - `keepalive`: Interval in minutes to send keepalive pings (`VALUES 1`) on idle connections, preventing WebSocket connections from being dropped by firewalls or network intermediaries. The timer resets whenever a real query is executed. If a keepalive ping fails, the timer stops and the connection will be retired on the next `attach()` health check. (default: `null` = disabled). Recommended: `5` for most environments. Note: automatically disabled for the idb backend (no WebSocket to keep alive).
 - `logger`: Custom logger object (per-pool override, see Logger below)
 
 #### Pools Options
@@ -163,7 +234,7 @@ interface Logger {
 The logger flows down from `RmPools` → `RmPool` → `RmPoolConnection` → `RmConnection`. You can set it at the top level or per-pool:
 
 ```typescript
-import { RmPools } from 'rm-mapepire-js';
+import { RmPools } from 'rm-connector-js';
 
 // Custom logger (e.g. winston, pino, or any object with a log method)
 const myLogger = {
@@ -182,9 +253,13 @@ const pools = new RmPools({
 For standalone connections (without pools):
 
 ```typescript
-import { RmConnection } from 'rm-mapepire-js';
+import { RmConnection } from 'rm-connector-js';
 
-const conn = new RmConnection(creds, jdbcOptions, [], 'info', myLogger);
+const conn = new RmConnection({
+  creds: { host: '...', user: '...', password: '...' },
+  logger: myLogger,
+  logLevel: 'info',
+});
 await conn.init();
 ```
 
@@ -194,7 +269,7 @@ Winston's `log(level, message, meta)` method matches the `Logger` interface dire
 
 ```typescript
 import winston from 'winston';
-import { RmPools } from 'rm-mapepire-js';
+import { RmPools } from 'rm-connector-js';
 
 const logger = winston.createLogger({
   level: 'debug',
@@ -301,6 +376,20 @@ Represents a single pooled database connection.
 
 Represents a standalone database connection (not pooled).
 
+#### Constructor
+
+```typescript
+const conn = new RmConnection({
+  backend: 'auto',           // 'auto' | 'mapepire' | 'idb'
+  creds: { ... },            // DaemonServer object (required for mapepire)
+  JDBCOptions: { ... },      // JDBC options
+  initCommands: [],           // Init commands array
+  logLevel: 'info',           // Log level
+  logger: myLogger,           // Custom logger
+  keepalive: 5,               // Keepalive interval in minutes (mapepire only)
+});
+```
+
 #### Methods
 
 - `init()`: Initialize the connection and connect to the database
@@ -322,7 +411,7 @@ Richard Moulton
 ## Updating to the latest version
 
 ```bash
-npm update rm-mapepire-js
+npm update rm-connector-js
 ```
 
 ## Releasing
@@ -357,31 +446,30 @@ git push origin dev
 If you're making frequent changes, npm link is faster:
 
 ```bash
-# In your rm-mapepire-js directory
+# In your rm-connector-js directory
 npm link
 
 # In your consuming project
-npm link rm-mapepire-js
+npm link rm-connector-js
 ```
 
-Now any changes you make and build in `rm-mapepire-js` are immediately
+Now any changes you make and build in `rm-connector-js` are immediately
 available.
 
 When done:
 
 ```bash
 # 1. In your consuming project - removes the symlink
-npm unlink rm-mapepire-js
+npm unlink rm-connector-js
 
-# 2. In your rm-mapepire-js directory - removes the global link
+# 2. In your rm-connector-js directory - removes the global link
 npm unlink
 
 # 3. In your consuming project - reinstall normally
-npm install rm-mapepire-js
+npm install rm-connector-js
 ```
 
 ```bash
 # Check if something is linked, in the consuming project
-cd test-rm-mapepire-js
 ls -l node_modules/ | grep "^l"
 ```

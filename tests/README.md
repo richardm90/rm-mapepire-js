@@ -1,6 +1,6 @@
 # Tests
 
-This directory contains the test suite for rm-mapepire-js.
+This directory contains the test suite for rm-connector-js.
 
 ## Running Tests
 

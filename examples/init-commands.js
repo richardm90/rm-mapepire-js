@@ -9,7 +9,7 @@
  * library list, or calling IBM i programs to configure the job.
  */
 
-const { RmPools } = require('rm-mapepire-js');
+const { RmPools } = require('rm-connector-js');
 
 async function main() {
   const pools = new RmPools({

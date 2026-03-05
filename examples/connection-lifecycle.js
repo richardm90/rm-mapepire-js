@@ -15,7 +15,7 @@
  * and waits for the overflow connection to expire.
  */
 
-const { RmPools } = require('rm-mapepire-js');
+const { RmPools } = require('rm-connector-js');
 
 async function main() {
   const pools = new RmPools({

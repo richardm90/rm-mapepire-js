@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-03-05
+
+### Fixed
+
+- Fix npm registry publish issue (ghost 1.0.0 publish)
+- Fix `package-lock.json` still referencing old `rm-mapepire-js` name
+
+## [1.0.0] - 2026-03-05
+
+### Added
+
+- **Dual-backend support**: `mapepire` (remote, WebSocket) and `idb-pconnector` (native IBM i, ODBC)
+- `BackendConnection` interface (`src/backends/types.ts`) for pluggable backends
+- `MapepireBackend` (`src/backends/mapepire.ts`) — wraps `@ibm/mapepire-js` SQLJob
+- `IdbBackend` (`src/backends/idb.ts`) — wraps `idb-pconnector`, dynamically loaded
+- `backend` option on `RmConnectionOptions`: `'auto'` | `'mapepire'` | `'idb'` (default: `'auto'`)
+- Auto-detection: `'auto'` selects `idb` on IBM i (`process.platform === 'os400'`), `mapepire` elsewhere
+- `idb-pconnector` added to `optionalDependencies`
+- IDB backend: automatic numeric type conversion, string trimming to match mapepire behaviour
+- IDB backend: JDBC options mapping for `libraries` and `naming`
+- Parallel pool connection creation in both `init()` and `_attach()` increment paths
+
+### Changed
+
+- **Breaking:** `RmConnection` now takes a single `RmConnectionOptions` object instead of positional arguments
+- **Breaking:** Package renamed from `rm-mapepire-js` to `rm-connector-js`
+- Pool connections are now created in parallel (previously sequential)
+
+### Deprecated
+
+- `rm-mapepire-js` npm package — use `rm-connector-js` instead
+
 ## [0.4.0] - 2026-03-03
 
 ### Added

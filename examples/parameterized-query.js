@@ -3,9 +3,11 @@
  *
  * Demonstrates how to execute queries with parameter markers
  * to safely pass user-supplied values.
+ *
+ * You will need authority to insert rows into QIWS.QCUSTCDT.
  */
 
-const { RmPools } = require('rm-mapepire-js');
+const { RmPools } = require('rm-connector-js');
 
 async function main() {
   const pools = new RmPools({

@@ -12,7 +12,7 @@
  *   if the overhead of the extra round-trip is not desired.
  */
 
-const { RmPools } = require('rm-mapepire-js');
+const { RmPools } = require('rm-connector-js');
 
 async function main() {
   // Health check enabled (default behaviour)

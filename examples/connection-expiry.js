@@ -10,7 +10,7 @@
  *   connections are busy (up to maxSize)
  */
 
-const { RmPools } = require('rm-mapepire-js');
+const { RmPools } = require('rm-connector-js');
 
 async function main() {
   const pools = new RmPools({

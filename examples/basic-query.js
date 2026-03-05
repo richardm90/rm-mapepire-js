@@ -4,7 +4,7 @@
  * Demonstrates how to set up a connection pool and execute a simple SQL query.
  */
 
-const { RmPools } = require('rm-mapepire-js');
+const { RmPools } = require('rm-connector-js');
 // const { RmPools } = require('../dist');
 
 async function main() {
@@ -14,6 +14,8 @@ async function main() {
       {
         id: 'mydb',
         PoolOptions: {
+          // backend: 'mapepire',
+          // backend: 'idb',
           creds: {
             host: 'myibmi.com',
             user: 'MYUSER',
