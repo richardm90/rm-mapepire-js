@@ -64,6 +64,8 @@ The `backend` option controls which driver is used:
 | `'mapepire'` | Always use mapepire (remote WebSocket) |
 | `'idb'` | Always use idb-pconnector (native IBM i ODBC) |
 
+Both backends produce identical query data. For a detailed comparison of result envelope differences, error message formats, and feature support, see [BACKEND-DIFFERENCES.md](BACKEND-DIFFERENCES.md).
+
 ### Pooled connections
 
 ```typescript

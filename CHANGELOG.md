@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-03-05
+
+### Fixed
+
+- IDB backend: import `SQL_ATTR_COMMIT`/`SQL_TXN_NO_COMMIT` constants from `idb-pconnector` instead of hardcoding wrong values
+- IDB backend: handle `fetchAll` "no result set" error for CALL statements (e.g. `QCMDEXC`)
+- IDB backend: use `setConnAttr` for naming option (`SET OPTION` not allowed in `idb-pconnector`)
+- IDB backend: use `prepare`/`execute` path for `SET PATH` statements
+- IDB backend: change string trimming from `trim()` to `trimEnd()` to preserve leading whitespace
+- IDB backend: capture output parameters from stored procedures via `stmt.execute()` return value
+- Per-pool logger override now correctly takes precedence over the global logger
+
+### Added
+
+- Mapepire backend now logs `Connected (@ibm/mapepire-js)` (was `Connected`)
+- New examples: `standalone-connection.js`, `custom-logger.js`, `error-handling.js`
+- `BACKEND-DIFFERENCES.md` — comprehensive comparison of idb vs mapepire backend behaviour
+- Test for per-pool logger override
+
 ## [1.0.1] - 2026-03-05
 
 ### Fixed
