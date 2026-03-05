@@ -69,7 +69,7 @@ class RmPool extends EventEmitter {
     this.healthCheckOnAttach = opts.healthCheck?.onAttach ?? true;
     this.keepaliveInterval = opts.healthCheck?.keepalive ?? null;
     this.logLevel = opts.logLevel ?? logLevel;
-    this.logger = logger || opts.logger || defaultLogger;
+    this.logger = opts.logger || logger || defaultLogger;
     this.rmLogger = new RmLogger(this.logger, this.logLevel, 'RmPool', `Pool: ${this.id}`);
     this.attachQueue = Promise.resolve();
     this.nextConnectionId = 0;

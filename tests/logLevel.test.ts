@@ -185,6 +185,49 @@ describe('Log level integration', () => {
     expect(debugLogs.length).toBe(0);
   });
 
+  it('should allow per-pool logger override', async () => {
+    const globalLogger = { log: jest.fn() };
+    const poolLogger = { log: jest.fn() };
+    const pools = new RmPools({
+      logLevel: 'debug',
+      logger: globalLogger,
+      pools: [{
+        id: 'custom-logger-pool',
+        PoolOptions: {
+          creds: {
+            host: 'test-host',
+            user: 'test-user',
+            password: 'test-password',
+          },
+          logger: poolLogger,
+          initialConnections: {
+            size: 1,
+          },
+        },
+      }],
+    });
+
+    await pools.init();
+
+    // Pool-level and connection-level messages should go to poolLogger
+    const poolMessages = poolLogger.log.mock.calls.filter(
+      (call: any[]) => call[2]?.service === 'RmPool' || call[2]?.service === 'RmPoolConnection'
+    );
+    expect(poolMessages.length).toBeGreaterThan(0);
+
+    // Those same services should NOT appear in globalLogger
+    const globalPoolMessages = globalLogger.log.mock.calls.filter(
+      (call: any[]) => call[2]?.service === 'RmPool' || call[2]?.service === 'RmPoolConnection'
+    );
+    expect(globalPoolMessages.length).toBe(0);
+
+    // RmPools-level messages should still go to globalLogger
+    const poolsMessages = globalLogger.log.mock.calls.filter(
+      (call: any[]) => call[2]?.service === 'RmPools'
+    );
+    expect(poolsMessages.length).toBeGreaterThan(0);
+  });
+
   it('should allow per-pool logLevel override', async () => {
     const customLogger = { log: jest.fn() };
     const pools = new RmPools({
