@@ -3,6 +3,18 @@ import type RmPool from './rmPool';
 
 export { JDBCOptions, DaemonServer };
 
+export type BackendType = 'mapepire' | 'idb' | 'auto';
+
+export interface RmConnectionOptions {
+  creds?: DaemonServer;
+  JDBCOptions?: JDBCOptions;
+  initCommands?: InitCommand[];
+  logLevel?: LogLevel;
+  logger?: Logger;
+  keepalive?: number | null;
+  backend?: BackendType;
+}
+
 export interface RmQueryResult<T> extends QueryResult<T> {
   job: string;
 }
@@ -28,7 +40,7 @@ export interface HealthCheckConfig {
 }
 
 export interface PoolOptions {
-  creds: DaemonServer;
+  creds?: DaemonServer;
   maxSize?: number;
   initialConnections?: InitialConnections;
   incrementConnections?: IncrementConnections;
@@ -37,6 +49,7 @@ export interface PoolOptions {
   initCommands?: InitCommand[];
   healthCheck?: HealthCheckConfig;
   logger?: Logger;
+  backend?: BackendType;
 }
 
 export interface PoolConfig {

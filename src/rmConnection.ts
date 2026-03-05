@@ -1,103 +1,83 @@
-import { SQLJob, JDBCOptions, DaemonServer, States } from '@ibm/mapepire-js';
-import { InitCommand, QueryOptions, Logger, LogLevel, RmQueryResult } from './types';
+import { JDBCOptions, DaemonServer } from '@ibm/mapepire-js';
+import { InitCommand, QueryOptions, Logger, LogLevel, RmQueryResult, BackendType, RmConnectionOptions } from './types';
 import defaultLogger, { RmLogger } from './logger';
+import { BackendConnection } from './backends/types';
+import { MapepireBackend } from './backends/mapepire';
 
 /**
- * Uses and Extends the Connection class implemented in idb-pconnector.
+ * Unified DB2 connection supporting mapepire (remote) and idb-pconnector (native) backends.
  */
 class RmConnection {
-  creds: DaemonServer;
+  creds?: DaemonServer;
   logLevel: LogLevel;
   JDBCOptions: JDBCOptions;
   initCommands: InitCommand[];
   available: boolean;
-  job!: SQLJob;
   jobName?: string;
   logger: Logger;
   keepalive: number | null;
+  backend: BackendType;
+  private backendImpl!: BackendConnection;
   private keepaliveTimerId: NodeJS.Timeout | null;
   rmLogger: RmLogger;
 
-  /**
-   * @description
-   * Instantiates a new instance of a RmConnection class.
-   * @param {object} creds - connection credentials
-   * @param {object} JDBCOptions - JDBCOptions
-   * @param {object} initCommands - commands to run on connection init
-   * @param {LogLevel} logLevel - log level
-   * @param {Logger} logger - logger
-   * @param {number|null} keepalive - interval in minutes to send keepalive pings (null = disabled)
-   */
-  constructor(creds: DaemonServer, JDBCOptions: JDBCOptions, initCommands: InitCommand[] = [], logLevel: LogLevel = 'info', logger?: Logger, keepalive?: number | null) {
-    this.creds = creds || {};
-    this.JDBCOptions = JDBCOptions || {};
-    this.initCommands = initCommands || [];
+  constructor(opts: RmConnectionOptions) {
+    this.creds = opts.creds;
+    this.JDBCOptions = opts.JDBCOptions || {};
+    this.initCommands = opts.initCommands || [];
     this.available = false;
-    this.logLevel = logLevel;
-    this.logger = logger || defaultLogger;
-    this.keepalive = keepalive ?? null;
+    this.logLevel = opts.logLevel || 'info';
+    this.logger = opts.logger || defaultLogger;
+    this.keepalive = opts.keepalive ?? null;
+    this.backend = opts.backend || 'auto';
     this.keepaliveTimerId = null;
     this.rmLogger = new RmLogger(this.logger, this.logLevel, 'RmConnection');
   }
 
-  /**
-   * Initializes an instance of RmConnection.
-   */
+  private resolveBackend(): 'mapepire' | 'idb' {
+    if (this.backend === 'auto') {
+      return (process.platform as string) === 'os400' ? 'idb' : 'mapepire';
+    }
+    return this.backend;
+  }
+
   async init(suppressConnectionMessage: boolean = false): Promise<void> {
-    this.job = new SQLJob(this.JDBCOptions);
+    const resolved = this.resolveBackend();
 
-    if (this.job.getStatus() === States.JobStatus.NOT_STARTED) {
-      await this.job.connect(this.creds);
-    }
-
-    // Grab IBM i job name
-    this.jobName = this.job.id;
-    this.rmLogger.setPrefix(`Job: ${this.jobName}`);
-
-    if (!suppressConnectionMessage)
-      this.rmLogger.info(`Connected`);
-
-    // Execute init commands on the connection (IBM i job)
-    for (let i = 0; i < this.initCommands.length; i += 1) {
-      const { command, type = 'cl' } = this.initCommands[i];
-      if (command) {
-        if (type === 'sql') {
-          await this.job.execute(command);
-        } else {
-          await this.job.execute(`CALL QSYS2.QCMDEXC(?)`, { parameters: [command] });
-        }
-        this.rmLogger.debug(`Executed init command (${type}): ${command}`);
+    if (resolved === 'idb') {
+      const { IdbBackend } = require('./backends/idb');
+      this.backendImpl = new IdbBackend(this.JDBCOptions, this.initCommands, this.rmLogger);
+      // Auto-disable keepalive for idb (no WebSocket to keep alive)
+      this.keepalive = null;
+    } else {
+      if (!this.creds) {
+        throw new Error('RmConnection: creds are required for the mapepire backend');
       }
+      this.backendImpl = new MapepireBackend(this.creds, this.JDBCOptions, this.initCommands, this.rmLogger);
     }
+
+    await this.backendImpl.init(suppressConnectionMessage);
+
+    this.jobName = this.backendImpl.getJobName();
+    this.rmLogger.setPrefix(`Job: ${this.jobName}`);
 
     this.startKeepalive();
   }
 
   async execute(sql: string, opts: QueryOptions = {}): Promise<RmQueryResult<any>> {
     this.resetKeepalive();
-    const result = await this.job.execute(sql, opts);
-    return { ...result, job: this.jobName! };
+    return this.backendImpl.execute(sql, opts);
   }
 
   async query(sql: string, opts: QueryOptions = {}): Promise<RmQueryResult<any>> {
-    const result = await this.job.execute(sql, opts);
-    return { ...result, job: this.jobName! };
+    return this.backendImpl.execute(sql, opts);
   }
 
-  /**
-   * Retire the connection, closes the connection.
-   * @returns {boolean} True if retired.
-   */
   async close(): Promise<void> {
     this.stopKeepalive();
-    await this.job.close();
+    await this.backendImpl.close();
   }
 
-  /**
-   * Starts the keepalive timer. Sends a lightweight query at regular
-   * intervals to prevent idle WebSocket connections from being dropped
-   * by firewalls or network intermediaries.
-   */
   private startKeepalive(): void {
     if (this.keepalive && this.keepalive > 0) {
       const ms = this.keepalive * 60 * 1000;
@@ -106,9 +86,6 @@ class RmConnection {
     }
   }
 
-  /**
-   * Stops the keepalive timer.
-   */
   private stopKeepalive(): void {
     if (this.keepaliveTimerId) {
       clearInterval(this.keepaliveTimerId);
@@ -117,10 +94,6 @@ class RmConnection {
     }
   }
 
-  /**
-   * Resets the keepalive timer. Called when real traffic is sent,
-   * so the next keepalive ping is deferred by a full interval.
-   */
   private resetKeepalive(): void {
     if (this.keepaliveTimerId) {
       this.stopKeepalive();
@@ -128,14 +101,9 @@ class RmConnection {
     }
   }
 
-  /**
-   * Sends a lightweight query to keep the connection alive.
-   * If the ping fails, the timer is stopped — the pool's
-   * health-check-on-attach will handle retirement.
-   */
   private async ping(): Promise<void> {
     try {
-      await this.job.execute('VALUES 1');
+      await this.backendImpl.execute('VALUES 1');
       this.rmLogger.debug(`Keepalive ping OK`);
     } catch (error) {
       this.rmLogger.error(`Keepalive ping failed: ${error}`);
@@ -143,29 +111,18 @@ class RmConnection {
     }
   }
 
-  /**
-   * Retrieves the current status of the job.
-   *
-   * @returns The current status of the job.
-   */
-  getStatus(): States.JobStatus {
-    return this.job.getStatus();
+  getStatus(): string {
+    return this.backendImpl.getStatus();
   }
 
-  /**
-   * Get connection information for debugging
-   */
   getInfo(): object {
     return {
       jobName: this.jobName,
       available: this.available,
-      status: this.job?.getStatus(),
+      status: this.backendImpl?.getStatus(),
     };
   }
 
-  /**
-   * Print connection info to console
-   */
   printInfo(): void {
     console.log('Connection Info:', JSON.stringify(this.getInfo(), null, 2));
   }
