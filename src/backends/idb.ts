@@ -59,16 +59,13 @@ export class IdbBackend implements BackendConnection {
     this.conn = new Connection({ url: '*LOCAL' });
     this.status = 'connecting';
 
-    // Apply connection attributes (including commitment control) before any statement creation
-    this.applyConnectionAttrs();
+    // Apply JDBCOptions (connection attributes + SQL-based options)
+    await this.applyJDBCOptions();
 
     this.status = 'ready';
 
     if (!suppressConnectionMessage)
       this.rmLogger.info(`Connected (idb-pconnector)`);
-
-    // Handle JDBCOptions mappings
-    await this.applyJDBCOptions();
 
     // Execute init commands
     for (let i = 0; i < this.initCommands.length; i += 1) {
@@ -201,7 +198,7 @@ export class IdbBackend implements BackendConnection {
     }
   }
 
-  private applyConnectionAttrs(): void {
+  private async applyJDBCOptions(): Promise<void> {
     const opts = this.JDBCOptions as any;
     const {
       SQL_ATTR_COMMIT,
@@ -214,6 +211,8 @@ export class IdbBackend implements BackendConnection {
       SQL_TRUE,
       SQL_FALSE,
     } = this.IdbModule;
+
+    // --- Connection attributes (must be set before any SQL) ---
 
     const isolationMap: Record<string, number> = {
       'none': SQL_TXN_NO_COMMIT,
@@ -243,10 +242,16 @@ export class IdbBackend implements BackendConnection {
       this.conn.setConnAttr(SQL_ATTR_AUTOCOMMIT, opts['auto commit'] ? SQL_TRUE : SQL_FALSE);
       this.rmLogger.debug(`Set auto commit: ${opts['auto commit']}`);
     }
-  }
 
-  private async applyJDBCOptions(): Promise<void> {
-    const opts = this.JDBCOptions as any;
+    // Naming
+    if (opts.naming) {
+      const SQL_ATTR_DBC_SYS_NAMING = this.IdbModule.SQL_ATTR_DBC_SYS_NAMING ?? 0x10012;
+      const value = opts.naming === 'system' ? 1 : 0;
+      this.conn.setConnAttr(SQL_ATTR_DBC_SYS_NAMING, value);
+      this.rmLogger.debug(`Set naming: ${opts.naming === 'system' ? '*SYS' : '*SQL'}`);
+    }
+
+    // --- SQL-based options ---
 
     if (opts.libraries) {
       const libs = Array.isArray(opts.libraries) ? opts.libraries : [opts.libraries];
@@ -256,15 +261,6 @@ export class IdbBackend implements BackendConnection {
         await this.execParameterized(`SET PATH = ${pathList}`, []);
         this.rmLogger.debug(`Set library path: ${pathList}`);
       }
-    }
-
-    if (opts.naming) {
-      // SET OPTION NAMING is not allowed via exec() or prepare()/execute() in idb-pconnector.
-      // Use setConnAttr with SQL_ATTR_DBC_SYS_NAMING instead.
-      const SQL_ATTR_DBC_SYS_NAMING = this.IdbModule.SQL_ATTR_DBC_SYS_NAMING ?? 0x10012;
-      const value = opts.naming === 'system' ? 1 : 0;
-      this.conn.setConnAttr(SQL_ATTR_DBC_SYS_NAMING, value);
-      this.rmLogger.debug(`Set naming: ${opts.naming === 'system' ? '*SYS' : '*SQL'}`);
     }
 
     // Log warnings for other JDBC options that don't map to idb
