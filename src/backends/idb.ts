@@ -4,9 +4,8 @@ import { RmLogger } from '../logger';
 
 // idb-pconnector types (loaded dynamically)
 interface IdbConnection {
-  dbconn: {
-    setConnAttr(attr: number, value: number): void;
-  };
+  setConnAttr(attr: number, value: number): void;
+  connect(url?: string, username?: string, password?: string): any;
   getStatement(): IdbStatement;
   disconn(): void;
   close(): void;
@@ -26,8 +25,8 @@ interface IdbStatement {
   close(): void;
 }
 
-// SQL_ATTR_COMMIT and SQL_TXN_NO_COMMIT are loaded dynamically from
-// idb-pconnector (re-exported from idb-connector) to avoid hardcoding values.
+// ODBC constants (SQL_ATTR_COMMIT, SQL_TXN_*, SQL_ATTR_AUTOCOMMIT, etc.) are
+// loaded dynamically from idb-pconnector (re-exported from idb-connector).
 
 export class IdbBackend implements BackendConnection {
   private conn!: IdbConnection;
@@ -56,12 +55,12 @@ export class IdbBackend implements BackendConnection {
       );
     }
 
-    const { Connection, SQL_ATTR_COMMIT, SQL_TXN_NO_COMMIT } = this.IdbModule;
+    const { Connection } = this.IdbModule;
     this.conn = new Connection({ url: '*LOCAL' });
     this.status = 'connecting';
 
-    // Disable commitment control before any statement creation
-    this.conn.dbconn.setConnAttr(SQL_ATTR_COMMIT, SQL_TXN_NO_COMMIT);
+    // Apply connection attributes (including commitment control) before any statement creation
+    this.applyConnectionAttrs();
 
     this.status = 'ready';
 
@@ -202,6 +201,50 @@ export class IdbBackend implements BackendConnection {
     }
   }
 
+  private applyConnectionAttrs(): void {
+    const opts = this.JDBCOptions as any;
+    const {
+      SQL_ATTR_COMMIT,
+      SQL_TXN_NO_COMMIT,
+      SQL_TXN_READ_UNCOMMITTED,
+      SQL_TXN_READ_COMMITTED,
+      SQL_TXN_REPEATABLE_READ,
+      SQL_TXN_SERIALIZABLE,
+      SQL_ATTR_AUTOCOMMIT,
+      SQL_TRUE,
+      SQL_FALSE,
+    } = this.IdbModule;
+
+    const isolationMap: Record<string, number> = {
+      'none': SQL_TXN_NO_COMMIT,
+      'read uncommitted': SQL_TXN_READ_UNCOMMITTED,
+      'read committed': SQL_TXN_READ_COMMITTED,
+      'repeatable read': SQL_TXN_REPEATABLE_READ,
+      'serializable': SQL_TXN_SERIALIZABLE,
+    };
+
+    // Transaction isolation (commitment control level)
+    if (opts['transaction isolation']) {
+      const level = isolationMap[opts['transaction isolation']];
+      if (level !== undefined) {
+        this.conn.setConnAttr(SQL_ATTR_COMMIT, level);
+        this.rmLogger.debug(`Set transaction isolation: ${opts['transaction isolation']}`);
+      } else {
+        this.rmLogger.debug(`Unknown transaction isolation: ${opts['transaction isolation']}, defaulting to none`);
+        this.conn.setConnAttr(SQL_ATTR_COMMIT, SQL_TXN_NO_COMMIT);
+      }
+    } else {
+      // Default: no commitment control (matches previous behaviour)
+      this.conn.setConnAttr(SQL_ATTR_COMMIT, SQL_TXN_NO_COMMIT);
+    }
+
+    // Auto commit
+    if (opts['auto commit'] !== undefined) {
+      this.conn.setConnAttr(SQL_ATTR_AUTOCOMMIT, opts['auto commit'] ? SQL_TRUE : SQL_FALSE);
+      this.rmLogger.debug(`Set auto commit: ${opts['auto commit']}`);
+    }
+  }
+
   private async applyJDBCOptions(): Promise<void> {
     const opts = this.JDBCOptions as any;
 
@@ -220,12 +263,12 @@ export class IdbBackend implements BackendConnection {
       // Use setConnAttr with SQL_ATTR_DBC_SYS_NAMING instead.
       const SQL_ATTR_DBC_SYS_NAMING = this.IdbModule.SQL_ATTR_DBC_SYS_NAMING ?? 0x10012;
       const value = opts.naming === 'system' ? 1 : 0;
-      this.conn.dbconn.setConnAttr(SQL_ATTR_DBC_SYS_NAMING, value);
+      this.conn.setConnAttr(SQL_ATTR_DBC_SYS_NAMING, value);
       this.rmLogger.debug(`Set naming: ${opts.naming === 'system' ? '*SYS' : '*SQL'}`);
     }
 
     // Log warnings for other JDBC options that don't map to idb
-    const mappedKeys = ['libraries', 'naming'];
+    const mappedKeys = ['libraries', 'naming', 'transaction isolation', 'auto commit'];
     for (const key of Object.keys(opts)) {
       if (!mappedKeys.includes(key)) {
         this.rmLogger.debug(`JDBCOption '${key}' is not supported by idb backend, ignoring`);

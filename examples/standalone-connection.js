@@ -49,7 +49,8 @@ async function nativeExample() {
     },
     initCommands: [
       { command: 'ADDLIBLE QGPL', type: 'cl' },
-      { command: 'SET SCHEMA MYLIB', type: 'sql' },
+      { command: 'SET DATFMT *ISO', type: 'sql' },
+      { command: 'ADDENVVAR ENVVAR(WEBAPI_COMPANY) VALUE(\'01\') REPLACE(*YES)', type: 'cl' },
     ],
   });
 
