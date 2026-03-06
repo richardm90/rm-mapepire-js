@@ -14,6 +14,7 @@ describe('RmPoolConnection', () => {
         user: 'test-user',
         password: 'test-password',
       },
+      backend: 'mapepire',
       logLevel: 'info',
       JDBCOptions: {},
       initCommands: [],
