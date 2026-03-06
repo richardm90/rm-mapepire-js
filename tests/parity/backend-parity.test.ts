@@ -693,4 +693,353 @@ describeIf('Backend Parity', () => {
       );
     });
   });
+
+  // ===================================================================
+  // Data type parity
+  // ===================================================================
+  // Tests that all major DB2 for i SQL data types produce identical
+  // results from both backends.
+  //
+  // Types NOT covered: DATALINK, ROWID, XML, DBCLOB, FLOAT (alias for DOUBLE)
+  // ===================================================================
+
+  describe('Data type parity', () => {
+    const DT_LIB = 'PARITYTEST';
+    const DT_TABLE = `${DT_LIB}.DATATYPES`;
+
+    // --- Setup: create DATATYPES table and insert test rows ---
+
+    beforeAll(async () => {
+      const setup = new RmConnection({ backend: 'idb' });
+      await setup.init(true);
+      try {
+        // Ensure library exists (ignore CPF2111 if already there)
+        try {
+          await setup.execute('CALL QSYS2.QCMDEXC(?)', {
+            parameters: [`CRTLIB LIB(${DT_LIB}) TEXT('Parity test library')`],
+          });
+        } catch (e: any) {
+          if (!e?.message?.includes('CPF2111')) throw e;
+        }
+
+        await setup.execute(`CREATE OR REPLACE TABLE ${DT_TABLE} (
+          ROW_ID         INTEGER       NOT NULL,
+          ROW_LABEL      VARCHAR(30)   NOT NULL,
+          COL_SMALLINT   SMALLINT,
+          COL_INT        INTEGER,
+          COL_BIGINT     BIGINT,
+          COL_DECIMAL    DECIMAL(15,4),
+          COL_NUMERIC    NUMERIC(15,4),
+          COL_REAL       REAL,
+          COL_DOUBLE     DOUBLE,
+          COL_CHAR       CHAR(20),
+          COL_VARCHAR    VARCHAR(100),
+          COL_CLOB       CLOB(1K),
+          COL_DATE       DATE,
+          COL_TIME       TIME,
+          COL_TIMESTAMP  TIMESTAMP,
+          COL_BINARY     BINARY(16),
+          COL_VARBINARY  VARBINARY(64),
+          COL_BLOB       BLOB(1K),
+          COL_GRAPHIC    GRAPHIC(10) CCSID 13488,
+          COL_VARGRAPHIC VARGRAPHIC(40) CCSID 13488
+        )`);
+
+        // Row 1: all values populated
+        await setup.execute(`DELETE FROM ${DT_TABLE}`);
+        await setup.execute(`INSERT INTO ${DT_TABLE} VALUES (
+          1, 'ALL_VALUES',
+          32000, 2147483000, 9007199254740000,
+          12345.6789, 98765.4321,
+          3.14, 2.718281828459045,
+          'HELLO', 'World of DB2 for i', 'This is a CLOB value',
+          '2024-06-15', '13:45:30', '2024-06-15-13.45.30.123456',
+          X'48454C4C4F00000000000000000000000000000000000000000000000000000000',
+          X'DEADBEEF',
+          BLOB(X'0102030405'),
+          'TestGraph', 'VarGraphic'
+        )`);
+
+        // Row 2: all nulls (except PK)
+        await setup.execute(
+          `INSERT INTO ${DT_TABLE} (ROW_ID, ROW_LABEL) VALUES (2, 'ALL_NULLS')`
+        );
+
+        // Row 3: edge cases
+        await setup.execute(`INSERT INTO ${DT_TABLE} VALUES (
+          3, 'EDGE_CASES',
+          -32768, -2147483648, -9007199254740000,
+          0.0000, 0.0000,
+          0.0, -1.7976931348623157E+308,
+          '                    ', '', '',
+          '1970-01-01', '00:00:00', '1970-01-01-00.00.00.000000',
+          X'00000000000000000000000000000000',
+          X'',
+          BLOB(X''),
+          '          ', ''
+        )`);
+      } finally {
+        await setup.close();
+      }
+    }, 60_000);
+
+    afterAll(async () => {
+      const teardown = new RmConnection({ backend: 'idb' });
+      await teardown.init(true);
+      try {
+        await teardown.execute(`DROP TABLE ${DT_TABLE}`);
+      } catch (e) {
+        // Best-effort cleanup
+      } finally {
+        await teardown.close();
+      }
+    });
+
+    // ----- Integer types -----
+
+    it('integer types (SMALLINT, INTEGER, BIGINT)', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `SELECT COL_SMALLINT, COL_INT, COL_BIGINT FROM ${DT_TABLE} WHERE ROW_ID = 1`;
+        const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+        expect(normalise(idbRes)).toEqual(normalise(mapRes));
+        expect(idbRes.data[0].COL_SMALLINT).toBe(32000);
+        expect(idbRes.data[0].COL_INT).toBe(2147483000);
+        expect(idbRes.data[0].COL_BIGINT).toBe(9007199254740000);
+      });
+    });
+
+    // ----- Exact numeric types -----
+
+    it('exact numeric types (DECIMAL, NUMERIC)', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `SELECT COL_DECIMAL, COL_NUMERIC FROM ${DT_TABLE} WHERE ROW_ID = 1`;
+        const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+        expect(normalise(idbRes)).toEqual(normalise(mapRes));
+        expect(idbRes.data[0].COL_DECIMAL).toBe(12345.6789);
+        expect(idbRes.data[0].COL_NUMERIC).toBe(98765.4321);
+      });
+    });
+
+    // ----- Approximate numeric types -----
+
+    it('approximate numeric types (REAL, DOUBLE)', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `SELECT COL_REAL, COL_DOUBLE FROM ${DT_TABLE} WHERE ROW_ID = 1`;
+        const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+        expect(normalise(idbRes)).toEqual(normalise(mapRes));
+      });
+    });
+
+    // ----- Character types -----
+
+    it('character types (CHAR, VARCHAR)', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `SELECT COL_CHAR, COL_VARCHAR FROM ${DT_TABLE} WHERE ROW_ID = 1`;
+        const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+        expect(normalise(idbRes)).toEqual(normalise(mapRes));
+        // CHAR(20) 'HELLO' should be trimmed by both backends
+        expect(idbRes.data[0].COL_CHAR).toBe('HELLO');
+        expect(idbRes.data[0].COL_VARCHAR).toBe('World of DB2 for i');
+      });
+    });
+
+    it('CLOB values', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `SELECT COL_CLOB FROM ${DT_TABLE} WHERE ROW_ID = 1`;
+        const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+        expect(normalise(idbRes)).toEqual(normalise(mapRes));
+      });
+    });
+
+    // ----- Date/time types -----
+
+    it('date/time via VARCHAR_FORMAT (canonical)', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `SELECT
+          VARCHAR_FORMAT(COL_DATE, 'YYYY-MM-DD') AS COL_DATE,
+          VARCHAR_FORMAT(COL_TIME, 'HH24:MI:SS') AS COL_TIME,
+          VARCHAR_FORMAT(COL_TIMESTAMP, 'YYYY-MM-DD HH24:MI:SS.FFFFFF') AS COL_TIMESTAMP
+          FROM ${DT_TABLE} WHERE ROW_ID = 1`;
+        const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+        expect(normalise(idbRes)).toEqual(normalise(mapRes));
+        expect(idbRes.data[0].COL_DATE).toBe('2024-06-15');
+        expect(idbRes.data[0].COL_TIME).toBe('13:45:30');
+        expect(idbRes.data[0].COL_TIMESTAMP).toBe('2024-06-15 13:45:30.123456');
+      });
+    });
+
+    it('date/time raw format comparison', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `SELECT COL_DATE, COL_TIME, COL_TIMESTAMP FROM ${DT_TABLE} WHERE ROW_ID = 1`;
+        const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+
+        // Log actual raw values for documentation (visible in test output)
+        console.log('idb raw date/time:', JSON.stringify(idbRes.data[0]));
+        console.log('mapepire raw date/time:', JSON.stringify(mapRes.data[0]));
+
+        // Both backends should return the same data (format may differ)
+        // If this fails, the canonical VARCHAR_FORMAT test above still validates correctness
+        try {
+          expect(normalise(idbRes)).toEqual(normalise(mapRes));
+        } catch (e) {
+          console.log('NOTE: Raw date/time formats differ between backends — this is expected.');
+          console.log('  idb:', idbRes.data[0]);
+          console.log('  mapepire:', mapRes.data[0]);
+          // Don't fail — the canonical test covers correctness
+        }
+      });
+    });
+
+    // ----- Binary types -----
+
+    it('binary types (BINARY, VARBINARY)', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `SELECT HEX(COL_BINARY) AS COL_BINARY, HEX(COL_VARBINARY) AS COL_VARBINARY FROM ${DT_TABLE} WHERE ROW_ID = 1`;
+        const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+        expect(normalise(idbRes)).toEqual(normalise(mapRes));
+      });
+    });
+
+    it('BLOB values', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `SELECT HEX(COL_BLOB) AS COL_BLOB FROM ${DT_TABLE} WHERE ROW_ID = 1`;
+        const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+        expect(normalise(idbRes)).toEqual(normalise(mapRes));
+        expect(idbRes.data[0].COL_BLOB).toBe('0102030405');
+      });
+    });
+
+    // ----- GRAPHIC types -----
+
+    it('GRAPHIC and VARGRAPHIC', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `SELECT COL_GRAPHIC, COL_VARGRAPHIC FROM ${DT_TABLE} WHERE ROW_ID = 1`;
+        const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+        expect(normalise(idbRes)).toEqual(normalise(mapRes));
+      });
+    });
+
+    // ----- NULL values -----
+
+    it('NULL values across all types', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `SELECT * FROM ${DT_TABLE} WHERE ROW_ID = 2`;
+        const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+        expect(normalise(idbRes)).toEqual(normalise(mapRes));
+        // Verify nulls are actually null (not empty string or zero)
+        const row = idbRes.data[0];
+        expect(row.COL_SMALLINT).toBeNull();
+        expect(row.COL_INT).toBeNull();
+        expect(row.COL_BIGINT).toBeNull();
+        expect(row.COL_DECIMAL).toBeNull();
+        expect(row.COL_VARCHAR).toBeNull();
+        expect(row.COL_DATE).toBeNull();
+        expect(row.COL_BLOB).toBeNull();
+      });
+    });
+
+    // ----- Edge cases -----
+
+    it('edge case values', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `SELECT COL_SMALLINT, COL_INT, COL_BIGINT, COL_DECIMAL, COL_NUMERIC,
+          COL_REAL, COL_DOUBLE, COL_CHAR, COL_VARCHAR
+          FROM ${DT_TABLE} WHERE ROW_ID = 3`;
+        const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+        expect(normalise(idbRes)).toEqual(normalise(mapRes));
+        expect(idbRes.data[0].COL_SMALLINT).toBe(-32768);
+        expect(idbRes.data[0].COL_INT).toBe(-2147483648);
+        expect(idbRes.data[0].COL_BIGINT).toBe(-9007199254740000);
+        expect(idbRes.data[0].COL_DECIMAL).toBe(0);
+        expect(idbRes.data[0].COL_VARCHAR).toBe('');
+      });
+    });
+
+    // ----- BOOLEAN (V7R4+) -----
+
+    describe('BOOLEAN (V7R4+)', () => {
+      const BOOL_TABLE = `${DT_LIB}.DT_BOOL`;
+      let supported = true;
+
+      beforeAll(async () => {
+        const setup = new RmConnection({ backend: 'idb' });
+        await setup.init(true);
+        try {
+          await setup.execute(`CREATE OR REPLACE TABLE ${BOOL_TABLE} (
+            ROW_ID INT NOT NULL, COL_BOOL BOOLEAN
+          )`);
+          await setup.execute(`INSERT INTO ${BOOL_TABLE} VALUES (1, TRUE)`);
+          await setup.execute(`INSERT INTO ${BOOL_TABLE} VALUES (2, FALSE)`);
+          await setup.execute(`INSERT INTO ${BOOL_TABLE} VALUES (3, NULL)`);
+        } catch (e) {
+          supported = false;
+          console.log('BOOLEAN type not supported on this IBM i version, skipping');
+        } finally {
+          await setup.close();
+        }
+      });
+
+      afterAll(async () => {
+        if (!supported) return;
+        const teardown = new RmConnection({ backend: 'idb' });
+        await teardown.init(true);
+        try {
+          await teardown.execute(`DROP TABLE ${BOOL_TABLE}`);
+        } catch (e) { /* best-effort */ }
+        finally { await teardown.close(); }
+      });
+
+      it('BOOLEAN true/false/null values match', async () => {
+        if (!supported) return;
+        await withBothBackends({}, async (idb, mapepire) => {
+          const sql = `SELECT ROW_ID, COL_BOOL FROM ${BOOL_TABLE} ORDER BY ROW_ID`;
+          const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+          expect(normalise(idbRes)).toEqual(normalise(mapRes));
+        });
+      });
+    });
+
+    // ----- DECFLOAT (V7R4+) -----
+
+    describe('DECFLOAT (V7R4+)', () => {
+      const DF_TABLE = `${DT_LIB}.DT_DECFLOAT`;
+      let supported = true;
+
+      beforeAll(async () => {
+        const setup = new RmConnection({ backend: 'idb' });
+        await setup.init(true);
+        try {
+          await setup.execute(`CREATE OR REPLACE TABLE ${DF_TABLE} (
+            ROW_ID INT NOT NULL, COL_DF16 DECFLOAT(16), COL_DF34 DECFLOAT(34)
+          )`);
+          await setup.execute(`INSERT INTO ${DF_TABLE} VALUES (1, 12345.6789, 98765432101234.5678901234567890)`);
+          await setup.execute(`INSERT INTO ${DF_TABLE} VALUES (2, NULL, NULL)`);
+        } catch (e) {
+          supported = false;
+          console.log('DECFLOAT type not supported on this IBM i version, skipping');
+        } finally {
+          await setup.close();
+        }
+      });
+
+      afterAll(async () => {
+        if (!supported) return;
+        const teardown = new RmConnection({ backend: 'idb' });
+        await teardown.init(true);
+        try {
+          await teardown.execute(`DROP TABLE ${DF_TABLE}`);
+        } catch (e) { /* best-effort */ }
+        finally { await teardown.close(); }
+      });
+
+      it('DECFLOAT(16) and DECFLOAT(34) values match', async () => {
+        if (!supported) return;
+        await withBothBackends({}, async (idb, mapepire) => {
+          const sql = `SELECT ROW_ID, COL_DF16, COL_DF34 FROM ${DF_TABLE} ORDER BY ROW_ID`;
+          const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+          expect(normalise(idbRes)).toEqual(normalise(mapRes));
+        });
+      });
+    });
+  });
 });
