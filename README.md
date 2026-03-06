@@ -209,7 +209,7 @@ await conn.close();
   - `size`: Number of connections to add when pool is exhausted (default: 8)
   - `expiry`: Expiry time for new connections in minutes (same rules as above)
 - `logLevel`: Log level threshold for this pool: `'error'` | `'info'` | `'debug'` | `'none'` (overrides the global `logLevel` from Pools Options)
-- `JDBCOptions`: JDBC options object. For mapepire backend, this is a standard Mapepire JDBCOptions object. For idb backend, `libraries` and `naming` are supported.
+- `JDBCOptions`: JDBC options object. For mapepire backend, this is a standard Mapepire JDBCOptions object. For idb backend, `libraries`, `naming`, `transaction isolation`, and `auto commit` are supported (mapped to native ODBC calls). See [BACKEND-DIFFERENCES.md](BACKEND-DIFFERENCES.md) for details.
 - `initCommands`: Array of commands to execute when each connection is initialized. Each entry is an object with `command` (string) and optional `type` (`'cl'` or `'sql'`, defaults to `'cl'`). CL commands are executed via `QCMDEXC` with parameterised input; SQL commands are executed directly without parameterisation. **Security note:** SQL-type init commands must be trusted, developer-supplied strings — never pass unsanitised user input as an init command.
 - `healthCheck`: Health check settings
   - `onAttach`: Verify connections are alive before returning from `attach()` by executing a lightweight query (`VALUES 1`). Unhealthy connections are automatically retired and replaced. (default: `true`). Set to `false` to disable.
@@ -401,6 +401,43 @@ const conn = new RmConnection({
 - `getStatus()`: Get the current status of the underlying job
 - `getInfo()`: Get connection information for debugging
 - `printInfo()`: Print connection info to console
+
+## Testing
+
+### Unit tests
+
+Run the standard test suite (works on any platform, uses mocks):
+
+```bash
+npm test
+```
+
+### Backend parity tests
+
+These integration tests run the same operations against both the mapepire and idb backends on a real IBM i system, then compare the results to ensure they produce equivalent output. They cover:
+
+- Simple and parameterized queries
+- Data types, string trimming, column names
+- CL and SQL init commands
+- Error handling (invalid SQL, syntax errors)
+- JDBCOptions: `libraries`, `naming`, `transaction isolation`, `auto commit`
+- Combined JDBCOptions
+
+The parity tests require:
+- Running on IBM i (for the idb backend)
+- A running mapepire server on the target system
+- Environment variables for mapepire credentials
+
+```bash
+IBMI_HOST=myibmi.com IBMI_USER=MYUSER IBMI_PASSWORD=MYPASS npm run test:parity
+```
+
+When credentials are not set, the tests are automatically skipped:
+
+```bash
+npm run test:parity
+# Test Suites: 1 skipped, 0 of 1 total
+```
 
 ## License
 
