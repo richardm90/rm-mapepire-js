@@ -94,13 +94,16 @@ export class IdbBackend implements BackendConnection {
     let data: any[];
     let outputParms: any[] | null = null;
     let updateCount = 0;
+    let hasResultSet = true;
 
     try {
       if (opts.parameters && opts.parameters.length > 0) {
         const result = await this.execParameterized(sql, opts.parameters);
         data = result.data;
         outputParms = result.outputParms;
+        hasResultSet = result.hasResultSet;
       } else {
+        // execSimple (stmt.exec) always returns a result set
         data = await this.execSimple(sql);
       }
 
@@ -119,7 +122,7 @@ export class IdbBackend implements BackendConnection {
       const result: RmQueryResult<any> = {
         success: true,
         data,
-        has_results: data.length > 0,
+        has_results: hasResultSet,
         is_done: true,
         update_count: updateCount,
         sql_rc: 0,
@@ -174,7 +177,7 @@ export class IdbBackend implements BackendConnection {
     }
   }
 
-  private async execParameterized(sql: string, params: any[]): Promise<{ data: any[]; outputParms: any[] | null }> {
+  private async execParameterized(sql: string, params: any[]): Promise<{ data: any[]; outputParms: any[] | null; hasResultSet: boolean }> {
     const stmt = this.conn.getStatement();
     try {
       stmt.enableNumericTypeConversion(true);
@@ -183,17 +186,19 @@ export class IdbBackend implements BackendConnection {
       // execute() returns output parameters as an array at runtime, but is typed as void
       const outputParms = (await stmt.execute() as any) || null;
       let data: any[];
+      let hasResultSet = true;
       try {
         data = await stmt.fetchAll();
       } catch (e: any) {
         // Statements like CALL QSYS2.QCMDEXC(?) don't produce a result set
         if (e?.message?.includes('no result set') || e?.sqlcode === 8014) {
           data = [];
+          hasResultSet = false;
         } else {
           throw e;
         }
       }
-      return { data, outputParms };
+      return { data, outputParms, hasResultSet };
     } finally {
       stmt.close();
     }
