@@ -171,7 +171,7 @@ export class IdbBackend implements BackendConnection {
     try {
       stmt.enableNumericTypeConversion(true);
       const result = await stmt.exec(sql);
-      return result;
+      return result || [];
     } finally {
       stmt.close();
     }
