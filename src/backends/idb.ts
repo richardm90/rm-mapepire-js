@@ -5,6 +5,7 @@ import { RmLogger } from '../logger';
 // idb-pconnector types (loaded dynamically)
 interface IdbConnection {
   setConnAttr(attr: number, value: number): void;
+  setLibraryList(libraryList: string[]): void;
   connect(url?: string, username?: string, password?: string): any;
   getStatement(): IdbStatement;
   disconn(): void;
@@ -60,7 +61,7 @@ export class IdbBackend implements BackendConnection {
     this.status = 'connecting';
 
     // Apply JDBCOptions (connection attributes + SQL-based options)
-    await this.applyJDBCOptions();
+    this.applyJDBCOptions();
 
     this.status = 'ready';
 
@@ -198,7 +199,7 @@ export class IdbBackend implements BackendConnection {
     }
   }
 
-  private async applyJDBCOptions(): Promise<void> {
+  private applyJDBCOptions(): void {
     const opts = this.JDBCOptions as any;
     const {
       SQL_ATTR_COMMIT,
@@ -251,15 +252,12 @@ export class IdbBackend implements BackendConnection {
       this.rmLogger.debug(`Set naming: ${opts.naming === 'system' ? '*SYS' : '*SQL'}`);
     }
 
-    // --- SQL-based options ---
-
+    // Libraries
     if (opts.libraries) {
       const libs = Array.isArray(opts.libraries) ? opts.libraries : [opts.libraries];
       if (libs.length > 0) {
-        const pathList = ['SYSTEM PATH', ...libs].join(', ');
-        // Use prepare/execute path for SET statements (stmt.exec rejects some SET variants)
-        await this.execParameterized(`SET PATH = ${pathList}`, []);
-        this.rmLogger.debug(`Set library path: ${pathList}`);
+        this.conn.setLibraryList(libs);
+        this.rmLogger.debug(`Set library list: ${libs.join(', ')}`);
       }
     }
 

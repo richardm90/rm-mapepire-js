@@ -5,7 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.2] - 2026-03-05
+## [1.0.2] - 2026-03-06
+
+### Added
+
+- Mapepire backend now logs `Connected (mapepire-js)` (was `Connected`)
+- New examples: `standalone-connection.js`, `custom-logger.js`, `error-handling.js`
+- `BACKEND-DIFFERENCES.md` — comprehensive comparison of idb vs mapepire backend behaviour
+- Test for per-pool logger override
+- IDB backend: `transaction isolation` JDBCOption mapped to `setConnAttr(SQL_ATTR_COMMIT)` — supports `none`, `read uncommitted`, `read committed`, `repeatable read`, `serializable`
+- IDB backend: `auto commit` JDBCOption mapped to `setConnAttr(SQL_ATTR_AUTOCOMMIT)`
+- IDB backend: `setLibraryList()` replaces `SET PATH` SQL for setting library list (native ODBC call)
+- IDB backend unit tests covering all `applyJDBCOptions` mappings
+- `idb-pconnector` test mock — enables test suite to pass on IBM i
+- Tests now explicitly set `backend: 'mapepire'` to prevent idb backend being selected on IBM i
 
 ### Fixed
 
@@ -16,13 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - IDB backend: change string trimming from `trim()` to `trimEnd()` to preserve leading whitespace
 - IDB backend: capture output parameters from stored procedures via `stmt.execute()` return value
 - Per-pool logger override now correctly takes precedence over the global logger
-
-### Added
-
-- Mapepire backend now logs `Connected (mapepire-js)` (was `Connected`)
-- New examples: `standalone-connection.js`, `custom-logger.js`, `error-handling.js`
-- `BACKEND-DIFFERENCES.md` — comprehensive comparison of idb vs mapepire backend behaviour
-- Test for per-pool logger override
+- Tests failing on IBM i due to `resolveBackend()` selecting idb path without a mock
 
 ## [1.0.1] - 2026-03-05
 

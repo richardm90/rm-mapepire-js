@@ -57,8 +57,10 @@ This document details the differences between the two backends based on testing 
 | Feature | idb | mapepire |
 |---|---|---|
 | **Keepalive** | Automatically disabled (no WebSocket) | Supported (ping via `VALUES 1`) |
-| **JDBCOptions `libraries`** | Mapped to `SET PATH` | Native JDBC support |
+| **JDBCOptions `libraries`** | Mapped to `setLibraryList()` | Native JDBC support |
 | **JDBCOptions `naming`** | Mapped to `setConnAttr(SQL_ATTR_DBC_SYS_NAMING)` | Native JDBC support |
+| **JDBCOptions `transaction isolation`** | Mapped to `setConnAttr(SQL_ATTR_COMMIT)` | Native JDBC support |
+| **JDBCOptions `auto commit`** | Mapped to `setConnAttr(SQL_ATTR_AUTOCOMMIT)` | Native JDBC support |
 | **`SET OPTION` statements** | Not allowed (use `setConnAttr` instead) | Supported via JDBC |
 | **Credentials** | Not needed (connects to `*LOCAL`) | Required (`host`, `user`, `password`) |
 

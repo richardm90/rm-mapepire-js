@@ -22,15 +22,25 @@ class MockStatement {
   close(): void {}
 }
 
-export class Connection {
-  constructor(_opts?: any) {}
+// Track all created Connection instances for test assertions
+const instances: Connection[] = [];
 
-  setConnAttr(_attr: number, _value: number): void {}
-  connect(_url?: string, _username?: string, _password?: string): any { return this; }
+export class Connection {
+  setConnAttr = jest.fn();
+  setLibraryList = jest.fn();
+  connect = jest.fn().mockReturnThis();
+
+  constructor(_opts?: any) {
+    instances.push(this);
+  }
+
   getStatement(): MockStatement { return new MockStatement(); }
   disconn(): void {}
   close(): void {}
 }
+
+// Expose instances for tests
+(Connection as any).__instances = instances;
 
 // ODBC constants (matching idb-connector values)
 export const SQL_ATTR_COMMIT = 0;
