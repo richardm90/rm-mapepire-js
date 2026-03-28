@@ -291,12 +291,15 @@ describeIf('Backend Parity', () => {
       const setup = new RmConnection({ backend: 'idb' });
       await setup.init(true);
       try {
-        // Create library (ignore error if it already exists)
+        // Create library (ignore error if it already exists).
+        // We use CREATE SCHEMA instead of QCMDEXC CRTLIB because idb-pconnector
+        // wraps CL errors as generic SQLCODE=-443 without the underlying CPF code,
+        // making it impossible to distinguish "already exists" from real failures.
         try {
-          await setup.execute('CALL QSYS2.QCMDEXC(?)', { parameters: [`CRTLIB LIB(${TEST_LIB}) TEXT('Parity test library')`] });
+          await setup.execute(`CREATE SCHEMA ${TEST_LIB}`);
         } catch (e: any) {
-          // CPF2111 = library already exists
-          if (!e?.message?.includes('CPF2111')) throw e;
+          // SQLCODE=-601 = object already exists
+          if (!e?.message?.includes('SQLCODE=-601')) throw e;
         }
         // Create and populate test table
         await setup.execute(`CREATE OR REPLACE TABLE ${TEST_LIB}.PRODUCTS (
@@ -316,8 +319,8 @@ describeIf('Backend Parity', () => {
       const teardown = new RmConnection({ backend: 'idb' });
       await teardown.init(true);
       try {
-        await teardown.execute(`DROP TABLE ${TEST_LIB}.PRODUCTS`);
-        await teardown.execute('CALL QSYS2.QCMDEXC(?)', { parameters: [`DLTLIB LIB(${TEST_LIB})`] });
+        await teardown.execute(`DROP TABLE IF EXISTS ${TEST_LIB}.PRODUCTS`);
+        await teardown.execute(`DROP SCHEMA ${TEST_LIB}`);
       } catch (e) {
         // Best-effort cleanup
       } finally {
