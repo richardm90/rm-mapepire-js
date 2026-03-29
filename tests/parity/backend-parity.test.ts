@@ -889,8 +889,8 @@ describeIf('Backend Parity', () => {
       await withBothBackends({}, async (idb, mapepire) => {
         const sql = `SELECT
           VARCHAR_FORMAT(COL_DATE, 'YYYY-MM-DD') AS COL_DATE,
-          VARCHAR_FORMAT(COL_TIME, 'HH24:MI:SS') AS COL_TIME,
-          VARCHAR_FORMAT(COL_TIMESTAMP, 'YYYY-MM-DD HH24:MI:SS.FFFFFF') AS COL_TIMESTAMP
+          VARCHAR_FORMAT(CAST(COL_TIME AS TIMESTAMP), 'HH24:MI:SS') AS COL_TIME,
+          VARCHAR_FORMAT(COL_TIMESTAMP, 'YYYY-MM-DD HH24:MI:SS.NNNNNN') AS COL_TIMESTAMP
           FROM ${DT_TABLE} WHERE ROW_ID = 1`;
         const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
         expect(normalise(idbRes)).toEqual(normalise(mapRes));
