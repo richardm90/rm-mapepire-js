@@ -50,8 +50,9 @@ This document details the differences between the two backends based on testing 
 | **String trimming** | `trimEnd()` (trailing only) | Trimmed by mapepire server |
 | **Numeric conversion** | Via `enableNumericTypeConversion(true)` | Native from mapepire |
 | **Column names** | Identical | Identical |
-| **Numeric values** | Identical (except BIGINT) | Identical (except BIGINT) |
+| **Numeric values** | Identical (except BIGINT, DOUBLE) | Identical (except BIGINT, DOUBLE) |
 | **BIGINT type** | Returned as `string` | Returned as `number` |
+| **DOUBLE precision** | Truncated to ~6 significant digits | Full double precision (~15 digits) |
 
 ## Features
 

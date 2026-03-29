@@ -850,7 +850,15 @@ describeIf('Backend Parity', () => {
       await withBothBackends({}, async (idb, mapepire) => {
         const sql = `SELECT COL_REAL, COL_DOUBLE FROM ${DT_TABLE} WHERE ROW_ID = 1`;
         const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
-        expect(normalise(idbRes)).toEqual(normalise(mapRes));
+
+        // REAL matches across backends
+        expect(idbRes.data[0].COL_REAL).toBe(mapRes.data[0].COL_REAL);
+        expect(idbRes.data[0].COL_REAL).toBe(3.14);
+
+        // DOUBLE: idb truncates to ~6 significant digits, mapepire returns full precision
+        expect(idbRes.data[0].COL_DOUBLE).toBeCloseTo(mapRes.data[0].COL_DOUBLE, 5);
+        expect(mapRes.data[0].COL_DOUBLE).toBe(2.718281828459045);
+        expect(idbRes.data[0].COL_DOUBLE).toBe(2.71828);
       });
     });
 
