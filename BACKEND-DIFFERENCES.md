@@ -50,7 +50,8 @@ This document details the differences between the two backends based on testing 
 | **String trimming** | `trimEnd()` (trailing only) | Trimmed by mapepire server |
 | **Numeric conversion** | Via `enableNumericTypeConversion(true)` | Native from mapepire |
 | **Column names** | Identical | Identical |
-| **Numeric values** | Identical | Identical |
+| **Numeric values** | Identical (except BIGINT) | Identical (except BIGINT) |
+| **BIGINT type** | Returned as `string` | Returned as `number` |
 
 ## Features
 

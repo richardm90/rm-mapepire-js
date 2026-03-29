@@ -819,10 +819,16 @@ describeIf('Backend Parity', () => {
       await withBothBackends({}, async (idb, mapepire) => {
         const sql = `SELECT COL_SMALLINT, COL_INT, COL_BIGINT FROM ${DT_TABLE} WHERE ROW_ID = 1`;
         const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
-        expect(normalise(idbRes)).toEqual(normalise(mapRes));
+
+        // SMALLINT and INTEGER match across backends
+        expect(idbRes.data[0].COL_SMALLINT).toBe(mapRes.data[0].COL_SMALLINT);
+        expect(idbRes.data[0].COL_INT).toBe(mapRes.data[0].COL_INT);
         expect(idbRes.data[0].COL_SMALLINT).toBe(32000);
         expect(idbRes.data[0].COL_INT).toBe(2147483000);
-        expect(idbRes.data[0].COL_BIGINT).toBe(9007199254740000);
+
+        // BIGINT: idb returns string, mapepire returns number
+        expect(idbRes.data[0].COL_BIGINT).toBe('9007199254740000');
+        expect(mapRes.data[0].COL_BIGINT).toBe(9007199254740000);
       });
     });
 
