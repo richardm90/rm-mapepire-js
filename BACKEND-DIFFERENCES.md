@@ -53,6 +53,7 @@ This document details the differences between the two backends based on testing 
 | **Numeric values** | Identical (except BIGINT, DOUBLE) | Identical (except BIGINT, DOUBLE) |
 | **BIGINT type** | Returned as `string` | Returned as `number` |
 | **DOUBLE precision** | Truncated to ~6 significant digits | Full double precision (~15 digits) |
+| **NULL CLOB** | Returned as empty string `""` | Returned as `null` |
 
 ## Features
 
@@ -63,6 +64,7 @@ This document details the differences between the two backends based on testing 
 | **JDBCOptions `naming`** | Mapped to `setConnAttr(SQL_ATTR_DBC_SYS_NAMING)` | Native JDBC support |
 | **JDBCOptions `transaction isolation`** | Mapped to `setConnAttr(SQL_ATTR_COMMIT)` | Native JDBC support |
 | **JDBCOptions `auto commit`** | Mapped to `setConnAttr(SQL_ATTR_AUTOCOMMIT)` | Native JDBC support |
+| **Default commitment control** | `SQL_TXN_NO_COMMIT` set explicitly (required for LOB column operations) | No commitment control by default |
 | **`SET OPTION` statements** | Not allowed (use `setConnAttr` instead) | Supported via JDBC |
 | **Credentials** | Not needed (connects to `*LOCAL`) | Required (`host`, `user`, `password`) |
 

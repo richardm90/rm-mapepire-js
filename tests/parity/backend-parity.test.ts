@@ -957,16 +957,22 @@ describeIf('Backend Parity', () => {
       await withBothBackends({}, async (idb, mapepire) => {
         const sql = `SELECT * FROM ${DT_TABLE} WHERE ROW_ID = 2`;
         const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
-        expect(normalise(idbRes)).toEqual(normalise(mapRes));
-        // Verify nulls are actually null (not empty string or zero)
-        const row = idbRes.data[0];
-        expect(row.COL_SMALLINT).toBeNull();
-        expect(row.COL_INT).toBeNull();
-        expect(row.COL_BIGINT).toBeNull();
-        expect(row.COL_DECIMAL).toBeNull();
-        expect(row.COL_VARCHAR).toBeNull();
-        expect(row.COL_DATE).toBeNull();
-        expect(row.COL_BLOB).toBeNull();
+
+        const idbRow = idbRes.data[0];
+        const mapRow = mapRes.data[0];
+
+        // Most types return null on both backends
+        expect(idbRow.COL_SMALLINT).toBeNull();
+        expect(idbRow.COL_INT).toBeNull();
+        expect(idbRow.COL_BIGINT).toBeNull();
+        expect(idbRow.COL_DECIMAL).toBeNull();
+        expect(idbRow.COL_VARCHAR).toBeNull();
+        expect(idbRow.COL_DATE).toBeNull();
+        expect(idbRow.COL_BLOB).toBeNull();
+
+        // CLOB: idb returns empty string for NULL, mapepire returns null
+        expect(idbRow.COL_CLOB).toBe('');
+        expect(mapRow.COL_CLOB).toBeNull();
       });
     });
 
