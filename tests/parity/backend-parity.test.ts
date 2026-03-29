@@ -905,20 +905,11 @@ describeIf('Backend Parity', () => {
         const sql = `SELECT COL_DATE, COL_TIME, COL_TIMESTAMP FROM ${DT_TABLE} WHERE ROW_ID = 1`;
         const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
 
-        // Log actual raw values for documentation (visible in test output)
-        console.log('idb raw date/time:', JSON.stringify(idbRes.data[0]));
-        console.log('mapepire raw date/time:', JSON.stringify(mapRes.data[0]));
-
-        // Both backends should return the same data (format may differ)
-        // If this fails, the canonical VARCHAR_FORMAT test above still validates correctness
-        try {
-          expect(normalise(idbRes)).toEqual(normalise(mapRes));
-        } catch (e) {
-          console.log('NOTE: Raw date/time formats differ between backends — this is expected.');
-          console.log('  idb:', idbRes.data[0]);
-          console.log('  mapepire:', mapRes.data[0]);
-          // Don't fail — the canonical test covers correctness
-        }
+        // Raw date/time formats differ between backends (documented in BACKEND-DIFFERENCES.md).
+        // The canonical VARCHAR_FORMAT test validates correctness; here we just verify
+        // both backends return data without error.
+        expect(idbRes.data.length).toBe(1);
+        expect(mapRes.data.length).toBe(1);
       });
     });
 
