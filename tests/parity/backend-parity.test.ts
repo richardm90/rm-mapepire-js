@@ -85,6 +85,21 @@ const describeIf = skip ? describe.skip : describe;
 describeIf('Backend Parity', () => {
   jest.setTimeout(30_000);
 
+  const SHARED_LIB = 'PARITYTEST';
+
+  // Top-level teardown: drop the shared test schema after all tests complete
+  afterAll(async () => {
+    const teardown = new RmConnection({ backend: 'idb' });
+    await teardown.init(true);
+    try {
+      await teardown.execute(`DROP SCHEMA ${SHARED_LIB} CASCADE`);
+    } catch (e) {
+      // Best-effort cleanup
+    } finally {
+      await teardown.close();
+    }
+  });
+
   // ----- Basic queries -----
 
   describe('Simple queries', () => {
@@ -314,13 +329,13 @@ describeIf('Backend Parity', () => {
       }
     });
 
-    // Teardown: drop table and delete library
+    // Teardown: drop only the table — the PARITYTEST schema is shared with
+    // other describe blocks and is cleaned up by the top-level afterAll.
     afterAll(async () => {
       const teardown = new RmConnection({ backend: 'idb' });
       await teardown.init(true);
       try {
         await teardown.execute(`DROP TABLE IF EXISTS ${TEST_LIB}.PRODUCTS`);
-        await teardown.execute(`DROP SCHEMA ${TEST_LIB}`);
       } catch (e) {
         // Best-effort cleanup
       } finally {
@@ -716,13 +731,13 @@ describeIf('Backend Parity', () => {
       const setup = new RmConnection({ backend: 'idb' });
       await setup.init(true);
       try {
-        // Ensure library exists (ignore CPF2111 if already there)
+        // Ensure library exists (ignore -601 if already there).
+        // CREATE SCHEMA gives us a standard SQL error; QCMDEXC wraps CL errors
+        // as generic SQLCODE=-443 losing the CPF code from the message.
         try {
-          await setup.execute('CALL QSYS2.QCMDEXC(?)', {
-            parameters: [`CRTLIB LIB(${DT_LIB}) TEXT('Parity test library')`],
-          });
+          await setup.execute(`CREATE SCHEMA ${DT_LIB}`);
         } catch (e: any) {
-          if (!e?.message?.includes('CPF2111')) throw e;
+          if (!e?.message?.includes('SQLCODE=-601')) throw e;
         }
 
         await setup.execute(`CREATE OR REPLACE TABLE ${DT_TABLE} (
@@ -757,9 +772,9 @@ describeIf('Backend Parity', () => {
           3.14, 2.718281828459045,
           'HELLO', 'World of DB2 for i', 'This is a CLOB value',
           '2024-06-15', '13:45:30', '2024-06-15-13.45.30.123456',
-          X'48454C4C4F0000000000000000000000',
-          X'DEADBEEF',
-          BLOB(X'0102030405'),
+          CAST(X'48454C4C4F0000000000000000000000' AS BINARY(16)),
+          CAST(X'DEADBEEF' AS VARBINARY(64)),
+          CAST(X'0102030405' AS BLOB(1K)),
           'TestGraph', 'VarGraphic'
         )`);
 
@@ -776,9 +791,9 @@ describeIf('Backend Parity', () => {
           0.0, -1.7976931348623157E+308,
           '                    ', '', '',
           '1970-01-01', '00:00:00', '1970-01-01-00.00.00.000000',
-          X'00000000000000000000000000000000',
-          X'',
-          BLOB(X''),
+          CAST(X'00000000000000000000000000000000' AS BINARY(16)),
+          CAST(X'' AS VARBINARY(64)),
+          CAST(X'' AS BLOB(1K)),
           '          ', ''
         )`);
       } finally {
