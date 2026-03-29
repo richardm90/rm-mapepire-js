@@ -55,6 +55,7 @@ This document details the differences between the two backends based on testing 
 | **DOUBLE precision** | Truncated to ~6 significant digits | Full double precision (~15 digits) |
 | **NULL CLOB** | Returned as empty string `""` | Returned as `null` |
 | **BOOLEAN** | Returned as strings (`"TRUE"`, `"FALSE"`) — pending [idb-connector#191](https://github.com/IBM/nodejs-idb-connector/pull/191) for buffer fix | Returned as native `true`/`false` |
+| **DECFLOAT** | Returned as `string` (preserves full precision) | Returned as `number` (truncated to JS double precision) |
 
 ## Features
 

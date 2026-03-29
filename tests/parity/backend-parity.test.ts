@@ -689,7 +689,7 @@ describeIf('Backend Parity', () => {
       await withBothBackends(
         { initCommands: [{ command: 'CHGJOB INQMSGRPY(*DFT)', type: 'cl' }] },
         async (idb, mapepire) => {
-          const sql = 'SELECT CUSNUM FROM QIWS.QCUSTCDT FETCH FIRST 1 ROW ONLY';
+          const sql = 'SELECT CUSNUM FROM QIWS.QCUSTCDT ORDER BY CUSNUM FETCH FIRST 1 ROW ONLY';
 
           const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
 
@@ -1101,7 +1101,19 @@ describeIf('Backend Parity', () => {
         await withBothBackends({}, async (idb, mapepire) => {
           const sql = `SELECT ROW_ID, COL_DF16, COL_DF34 FROM ${DF_TABLE} ORDER BY ROW_ID`;
           const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
-          expect(normalise(idbRes)).toEqual(normalise(mapRes));
+
+          // Row 1: idb returns DECFLOAT as strings (preserving full precision),
+          // mapepire returns as numbers (truncated to JS double precision)
+          expect(idbRes.data[0].COL_DF16).toBe('12345.6789');
+          expect(mapRes.data[0].COL_DF16).toBe(12345.6789);
+          expect(idbRes.data[0].COL_DF34).toBe('98765432101234.5678901234567890');
+          expect(mapRes.data[0].COL_DF34).toBe(98765432101234.56);
+
+          // Row 2: nulls match on both backends
+          expect(idbRes.data[1].COL_DF16).toBeNull();
+          expect(mapRes.data[1].COL_DF16).toBeNull();
+          expect(idbRes.data[1].COL_DF34).toBeNull();
+          expect(mapRes.data[1].COL_DF34).toBeNull();
         });
       });
     });
