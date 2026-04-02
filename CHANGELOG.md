@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.2] - 2026-03-06
+## [1.0.2] - 2026-04-02
 
 ### Added
 
@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - IDB backend unit tests covering all `applyJDBCOptions` mappings
 - `idb-pconnector` test mock — enables test suite to pass on IBM i
 - Tests now explicitly set `backend: 'mapepire'` to prevent idb backend being selected on IBM i
+- Backend parity test suite (53 tests) covering data types, commitment control, JDBCOptions, DML, and error handling across idb and mapepire backends
+  - Multi-library parity tests with PARITYTEST schema setup/teardown
+  - DML parity tests with commitment control scenarios (INSERT, UPDATE, DELETE)
+  - COMMIT, ROLLBACK and error recovery parity tests for transactional guarantees
+  - DB2 for i SQL data type parity tests covering SMALLINT, INTEGER, BIGINT, DECIMAL, NUMERIC, REAL, DOUBLE, CHAR, VARCHAR, CLOB, DATE, TIME, TIMESTAMP, BINARY, VARBINARY, BLOB, GRAPHIC, VARGRAPHIC, BOOLEAN, and DECFLOAT
+  - Documented backend differences: BIGINT (string vs number), DOUBLE precision (~6 vs ~15 digits), DECFLOAT (string vs number), BOOLEAN (string vs native), NULL CLOB (empty string vs null), raw date/time formats, default commitment control
 
 ### Fixed
 
