@@ -682,6 +682,108 @@ describeIf('Backend Parity', () => {
     });
   });
 
+  // ----- Commitment control: transactional guarantees -----
+
+  describe('Commitment control: transactional guarantees', () => {
+
+    it('COMMIT should persist changes', async () => {
+      await withBothBackends(
+        { JDBCOptions: { 'auto commit': false, 'transaction isolation': 'read committed' } },
+        async (idb, mapepire) => {
+          const createSql = `DECLARE GLOBAL TEMPORARY TABLE PARITY_CMT (
+            ID INT, NAME VARCHAR(20)
+          ) ON COMMIT PRESERVE ROWS WITH REPLACE`;
+          const insertSql = 'INSERT INTO SESSION.PARITY_CMT VALUES (?, ?)';
+          const selectSql = 'SELECT ID, NAME FROM SESSION.PARITY_CMT ORDER BY ID';
+
+          for (const conn of [idb, mapepire]) {
+            await conn.execute(createSql);
+            await conn.execute(insertSql, { parameters: [1, 'Alice'] });
+            await conn.execute('COMMIT');
+            await conn.execute(insertSql, { parameters: [2, 'Bob'] });
+            await conn.execute('COMMIT');
+          }
+
+          const [idbRes, mapRes] = await Promise.all([
+            idb.execute(selectSql),
+            mapepire.execute(selectSql),
+          ]);
+
+          expect(normalise(idbRes)).toEqual(normalise(mapRes));
+          expect(idbRes.data.length).toBe(2);
+        },
+      );
+    });
+
+    it('ROLLBACK should revert uncommitted changes', async () => {
+      await withBothBackends(
+        { JDBCOptions: { 'auto commit': false, 'transaction isolation': 'read committed' } },
+        async (idb, mapepire) => {
+          const createSql = `DECLARE GLOBAL TEMPORARY TABLE PARITY_RBK (
+            ID INT, NAME VARCHAR(20)
+          ) ON COMMIT PRESERVE ROWS WITH REPLACE`;
+          const insertSql = 'INSERT INTO SESSION.PARITY_RBK VALUES (?, ?)';
+          const selectSql = 'SELECT ID, NAME FROM SESSION.PARITY_RBK ORDER BY ID';
+
+          for (const conn of [idb, mapepire]) {
+            await conn.execute(createSql);
+            await conn.execute(insertSql, { parameters: [1, 'Alice'] });
+            await conn.execute('COMMIT');
+            await conn.execute(insertSql, { parameters: [2, 'Bob'] });
+            await conn.execute('ROLLBACK');
+          }
+
+          const [idbRes, mapRes] = await Promise.all([
+            idb.execute(selectSql),
+            mapepire.execute(selectSql),
+          ]);
+
+          expect(normalise(idbRes)).toEqual(normalise(mapRes));
+          // Only the committed row should remain
+          expect(idbRes.data.length).toBe(1);
+          expect(idbRes.data[0].NAME).toBe('Alice');
+        },
+      );
+    });
+
+    it('failed statement should not corrupt transaction state', async () => {
+      await withBothBackends(
+        { JDBCOptions: { 'auto commit': false, 'transaction isolation': 'read committed' } },
+        async (idb, mapepire) => {
+          const createSql = `DECLARE GLOBAL TEMPORARY TABLE PARITY_ERR (
+            ID INT, NAME VARCHAR(20)
+          ) ON COMMIT PRESERVE ROWS WITH REPLACE`;
+          const insertSql = 'INSERT INTO SESSION.PARITY_ERR VALUES (?, ?)';
+          const selectSql = 'SELECT ID, NAME FROM SESSION.PARITY_ERR ORDER BY ID';
+
+          for (const conn of [idb, mapepire]) {
+            await conn.execute(createSql);
+            await conn.execute(insertSql, { parameters: [1, 'Alice'] });
+
+            // Execute an invalid statement
+            try {
+              await conn.execute('SELECT * FROM NONEXISTENT.TABLE_DOES_NOT_EXIST');
+            } catch (_e) {
+              // Expected to fail
+            }
+
+            // Connection should still be usable — insert and commit
+            await conn.execute(insertSql, { parameters: [2, 'Bob'] });
+            await conn.execute('COMMIT');
+          }
+
+          const [idbRes, mapRes] = await Promise.all([
+            idb.execute(selectSql),
+            mapepire.execute(selectSql),
+          ]);
+
+          expect(normalise(idbRes)).toEqual(normalise(mapRes));
+          expect(idbRes.data.length).toBe(2);
+        },
+      );
+    });
+  });
+
   // ----- initCommands -----
 
   describe('initCommands', () => {
