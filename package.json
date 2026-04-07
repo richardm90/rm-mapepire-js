@@ -12,6 +12,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:parity": "jest --config jest.parity.config.js",
+    "test:performance": "jest --config jest.perf.config.js",
     "prepublishOnly": "npm run build && npm test"
   },
   "files": [
