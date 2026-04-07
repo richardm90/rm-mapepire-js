@@ -29,11 +29,13 @@ This document details the differences between the two backends based on testing 
 | Property | idb | mapepire |
 |---|---|---|
 | **`output_parms` presence** | Only when `execute()` returns non-null | Always present for parameterized CALL |
+| **`output_parms` entries** | All parameters (IN + OUT + INOUT) | All parameters (IN + OUT + INOUT) |
 | **`index`** | Present | Present |
-| **`value`** | Present on all parameters (input and output) | Present only on output parameters |
+| **`value`** | Present on all parameters (input and output) | Present only on OUT/INOUT parameters (absent on IN) |
 | **`type`** | absent | Present (`'VARCHAR'`, etc.) |
-| **`name`** | absent | Present (`'DATABASE_OBJECT_NAME'`, etc.) |
+| **`name`** | absent | Present (`'P_NAME'`, etc.) |
 | **`precision`/`scale`/`ccsid`** | absent | Present |
+| **NULL OUT parameter** | Returns zero value (`""` for string/date/CLOB, `0` for numeric) — idb-pconnector limitation | Returns `null` |
 
 ## Error Messages
 

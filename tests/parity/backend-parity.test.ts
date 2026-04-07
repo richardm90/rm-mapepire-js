@@ -1211,4 +1211,342 @@ describeIf('Backend Parity', () => {
       });
     });
   });
+
+  // ===================================================================
+  // Stored procedure output parameters
+  //
+  // Tests that output parameters from stored procedures are returned
+  // correctly on both backends. A test procedure is created with IN,
+  // OUT, and INOUT parameters of various types.
+  //
+  // Known differences (see BACKEND-DIFFERENCES.md):
+  //   - Both backends return entries for all parameters (IN + OUT + INOUT)
+  //   - idb: value present on all parameters; mapepire: value only on OUT/INOUT
+  //   - mapepire includes extra metadata (type, name, precision, scale, ccsid)
+  //   - NULL OUT params: idb returns zero values (""/0), mapepire returns null
+  // ===================================================================
+
+  describe('Stored procedure output parameters', () => {
+    const SP_LIB = 'PARITYTEST';
+    const SP_NAME = `${SP_LIB}.PARITY_SP`;
+
+    beforeAll(async () => {
+      const setup = new RmConnection({ backend: 'idb' });
+      await setup.init(true);
+      try {
+        try {
+          await setup.execute(`CREATE SCHEMA ${SP_LIB}`);
+        } catch (e: any) {
+          if (!e?.message?.includes('SQLCODE=-601')) throw e;
+        }
+
+        await setup.execute(`CREATE OR REPLACE PROCEDURE ${SP_NAME} (
+          IN  P_NAME     VARCHAR(50),
+          IN  P_AMOUNT   DECIMAL(9,2),
+          OUT P_GREETING VARCHAR(100),
+          OUT P_DOUBLED  DECIMAL(11,2),
+          INOUT P_COUNTER INTEGER
+        )
+        LANGUAGE SQL
+        BEGIN
+          SET P_GREETING = 'Hello, ' CONCAT TRIM(P_NAME) CONCAT '!';
+          SET P_DOUBLED  = P_AMOUNT * 2;
+          SET P_COUNTER  = P_COUNTER + 1;
+        END`);
+      } finally {
+        await setup.close();
+      }
+    }, 60_000);
+
+    afterAll(async () => {
+      const teardown = new RmConnection({ backend: 'idb' });
+      await teardown.init(true);
+      try {
+        await teardown.execute(`DROP PROCEDURE ${SP_NAME}`);
+      } catch (e) {
+        // Best-effort cleanup
+      } finally {
+        await teardown.close();
+      }
+    });
+
+    it('basic OUT parameter values match', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `CALL ${SP_NAME}(?, ?, ?, ?, ?)`;
+        const opts = { parameters: ['Alice', 12.50, '', 0, 5] };
+
+        const [idbRes, mapRes] = await Promise.all([
+          idb.execute(sql, opts),
+          mapepire.execute(sql, opts),
+        ]);
+
+        expect(idbRes.success).toBe(true);
+        expect(mapRes.success).toBe(true);
+
+        const idbParms = (idbRes as any).output_parms;
+        const mapParms = (mapRes as any).output_parms;
+
+        expect(idbParms).toBeDefined();
+        expect(mapParms).toBeDefined();
+
+        // Both backends should return the correct output values.
+        // Find by index — idb uses 1-based indexing for all params,
+        // mapepire may only include output params.
+        const idbGreeting = idbParms.find((p: any) => p.index === 3);
+        const mapGreeting = mapParms.find((p: any) => p.index === 3);
+        expect(idbGreeting.value).toBe('Hello, Alice!');
+        expect(mapGreeting.value).toBe('Hello, Alice!');
+
+        const idbDoubled = idbParms.find((p: any) => p.index === 4);
+        const mapDoubled = mapParms.find((p: any) => p.index === 4);
+        expect(Number(idbDoubled.value)).toBe(25.00);
+        expect(Number(mapDoubled.value)).toBe(25.00);
+
+        // INOUT parameter
+        const idbCounter = idbParms.find((p: any) => p.index === 5);
+        const mapCounter = mapParms.find((p: any) => p.index === 5);
+        expect(Number(idbCounter.value)).toBe(6);
+        expect(Number(mapCounter.value)).toBe(6);
+      });
+    });
+
+    it('both backends return all parameters but differ on IN param values', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `CALL ${SP_NAME}(?, ?, ?, ?, ?)`;
+        const opts = { parameters: ['Bob', 7.00, '', 0, 10] };
+
+        const [idbRes, mapRes] = await Promise.all([
+          idb.execute(sql, opts),
+          mapepire.execute(sql, opts),
+        ]);
+
+        const idbParms = (idbRes as any).output_parms;
+        const mapParms = (mapRes as any).output_parms;
+
+        // Both backends return entries for ALL parameters (input + output)
+        expect(idbParms.length).toBe(5);
+        expect(mapParms.length).toBe(5);
+
+        // Both have entries for IN parameters (index 1 and 2)
+        expect(idbParms.find((p: any) => p.index === 1)).toBeDefined();
+        expect(mapParms.find((p: any) => p.index === 1)).toBeDefined();
+
+        // idb includes value on IN parameters
+        const idbInParam = idbParms.find((p: any) => p.index === 1);
+        expect(idbInParam.value).toBe('Bob');
+
+        // mapepire does NOT include value on IN parameters
+        const mapInParam = mapParms.find((p: any) => p.index === 1);
+        expect(mapInParam.value).toBeUndefined();
+      });
+    });
+
+    it('mapepire includes extra metadata fields', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `CALL ${SP_NAME}(?, ?, ?, ?, ?)`;
+        const opts = { parameters: ['Charlie', 1.00, '', 0, 0] };
+
+        const [idbRes, mapRes] = await Promise.all([
+          idb.execute(sql, opts),
+          mapepire.execute(sql, opts),
+        ]);
+
+        const idbParms = (idbRes as any).output_parms;
+        const mapParms = (mapRes as any).output_parms;
+
+        const idbGreeting = idbParms.find((p: any) => p.index === 3);
+        const mapGreeting = mapParms.find((p: any) => p.index === 3);
+
+        // idb output_parms entries only have index and value
+        expect(Object.keys(idbGreeting).sort()).toEqual(['index', 'value']);
+
+        // mapepire output_parms entries include additional metadata
+        expect(mapGreeting).toHaveProperty('type');
+        expect(mapGreeting).toHaveProperty('name');
+        expect(mapGreeting).toHaveProperty('precision');
+        expect(mapGreeting).toHaveProperty('scale');
+        expect(mapGreeting).toHaveProperty('ccsid');
+      });
+    });
+
+    it('NULL output parameter values across types', async () => {
+      // idb never returns null for NULL OUT params — it returns the type's
+      // zero value (empty string for string/date types, 0 for numerics).
+      // mapepire returns null for all types.
+      const SP_NULL = `${SP_LIB}.PARITY_SP_NULL`;
+      const setup = new RmConnection({ backend: 'idb' });
+      await setup.init(true);
+      try {
+        await setup.execute(`CREATE OR REPLACE PROCEDURE ${SP_NULL} (
+          OUT P_VARCHAR    VARCHAR(50),
+          OUT P_INT        INTEGER,
+          OUT P_DECIMAL    DECIMAL(9,2),
+          OUT P_DATE       DATE,
+          OUT P_CLOB       CLOB(1K),
+          OUT P_SMALLINT   SMALLINT,
+          OUT P_NUMERIC    NUMERIC(9,2),
+          OUT P_CHAR       CHAR(20),
+          OUT P_TIME       TIME,
+          OUT P_TIMESTAMP  TIMESTAMP,
+          OUT P_BLOB       BLOB(1K)
+        )
+        LANGUAGE SQL
+        BEGIN
+          SET P_VARCHAR   = NULL;
+          SET P_INT       = NULL;
+          SET P_DECIMAL   = NULL;
+          SET P_DATE      = NULL;
+          SET P_CLOB      = NULL;
+          SET P_SMALLINT  = NULL;
+          SET P_NUMERIC   = NULL;
+          SET P_CHAR      = NULL;
+          SET P_TIME      = NULL;
+          SET P_TIMESTAMP = NULL;
+          SET P_BLOB      = NULL;
+        END`);
+      } finally {
+        await setup.close();
+      }
+
+      try {
+        await withBothBackends({}, async (idb, mapepire) => {
+          const sql = `CALL ${SP_NULL}(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+          const opts = { parameters: ['', 0, 0, '', '', 0, 0, '', '', '', ''] };
+
+          const [idbRes, mapRes] = await Promise.all([
+            idb.execute(sql, opts),
+            mapepire.execute(sql, opts),
+          ]);
+
+          const idbParms = (idbRes as any).output_parms;
+          const mapParms = (mapRes as any).output_parms;
+
+          // mapepire returns null for all NULL OUT params
+          for (let i = 1; i <= 11; i++) {
+            const mapVal = mapParms.find((p: any) => p.index === i);
+            expect(mapVal.value).toBeNull();
+          }
+
+          // idb returns zero values instead of null:
+          // string/date/time/clob → empty string, numeric → 0
+          const idbVarchar = idbParms.find((p: any) => p.index === 1);
+          expect(idbVarchar.value).toBe('');
+
+          const idbInt = idbParms.find((p: any) => p.index === 2);
+          expect(idbInt.value).toBe(0);
+
+          const idbDecimal = idbParms.find((p: any) => p.index === 3);
+          expect(idbDecimal.value).toBe(0);
+
+          const idbDate = idbParms.find((p: any) => p.index === 4);
+          expect(idbDate.value).toBe('');
+
+          const idbClob = idbParms.find((p: any) => p.index === 5);
+          expect(idbClob.value).toBe('');
+
+          const idbSmallint = idbParms.find((p: any) => p.index === 6);
+          expect(idbSmallint.value).toBe(0);
+
+          const idbNumeric = idbParms.find((p: any) => p.index === 7);
+          expect(idbNumeric.value).toBe(0);
+
+          const idbChar = idbParms.find((p: any) => p.index === 8);
+          expect(idbChar.value).toBe('');
+
+          const idbTime = idbParms.find((p: any) => p.index === 9);
+          expect(idbTime.value).toBe('');
+
+          const idbTimestamp = idbParms.find((p: any) => p.index === 10);
+          expect(idbTimestamp.value).toBe('');
+
+          const idbBlob = idbParms.find((p: any) => p.index === 11);
+          expect(idbBlob.value).toBe('');
+        });
+      } finally {
+        const teardown = new RmConnection({ backend: 'idb' });
+        await teardown.init(true);
+        try {
+          await teardown.execute(`DROP PROCEDURE ${SP_NULL}`);
+        } catch (e) {
+          // Best-effort
+        } finally {
+          await teardown.close();
+        }
+      }
+    });
+
+    it('multiple output parameters with different types', async () => {
+      const SP_MULTI = `${SP_LIB}.PARITY_SP_MULTI`;
+      const setup = new RmConnection({ backend: 'idb' });
+      await setup.init(true);
+      try {
+        await setup.execute(`CREATE OR REPLACE PROCEDURE ${SP_MULTI} (
+          OUT P_STR    VARCHAR(50),
+          OUT P_INT    INTEGER,
+          OUT P_DEC    DECIMAL(9,2),
+          OUT P_DATE   DATE
+        )
+        LANGUAGE SQL
+        BEGIN
+          SET P_STR  = 'test output';
+          SET P_INT  = 42;
+          SET P_DEC  = 123.45;
+          SET P_DATE = DATE('2024-06-15');
+        END`);
+      } finally {
+        await setup.close();
+      }
+
+      try {
+        await withBothBackends({}, async (idb, mapepire) => {
+          const sql = `CALL ${SP_MULTI}(?, ?, ?, ?)`;
+          const opts = { parameters: ['', 0, 0, ''] };
+
+          const [idbRes, mapRes] = await Promise.all([
+            idb.execute(sql, opts),
+            mapepire.execute(sql, opts),
+          ]);
+
+          const idbParms = (idbRes as any).output_parms;
+          const mapParms = (mapRes as any).output_parms;
+
+          // VARCHAR output
+          const idbStr = idbParms.find((p: any) => p.index === 1);
+          const mapStr = mapParms.find((p: any) => p.index === 1);
+          expect(idbStr.value).toBe('test output');
+          expect(mapStr.value).toBe('test output');
+
+          // INTEGER output
+          const idbInt = idbParms.find((p: any) => p.index === 2);
+          const mapInt = mapParms.find((p: any) => p.index === 2);
+          expect(Number(idbInt.value)).toBe(42);
+          expect(Number(mapInt.value)).toBe(42);
+
+          // DECIMAL output
+          const idbDec = idbParms.find((p: any) => p.index === 3);
+          const mapDec = mapParms.find((p: any) => p.index === 3);
+          expect(Number(idbDec.value)).toBe(123.45);
+          expect(Number(mapDec.value)).toBe(123.45);
+
+          // DATE output — both should return a date string
+          const idbDate = idbParms.find((p: any) => p.index === 4);
+          const mapDate = mapParms.find((p: any) => p.index === 4);
+          expect(idbDate.value).toBeDefined();
+          expect(mapDate.value).toBeDefined();
+          // The actual format may differ (see BACKEND-DIFFERENCES.md raw DATE format)
+          // but both should represent the same date
+        });
+      } finally {
+        const teardown = new RmConnection({ backend: 'idb' });
+        await teardown.init(true);
+        try {
+          await teardown.execute(`DROP PROCEDURE ${SP_MULTI}`);
+        } catch (e) {
+          // Best-effort
+        } finally {
+          await teardown.close();
+        }
+      }
+    });
+  });
 });
