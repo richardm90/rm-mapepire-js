@@ -64,7 +64,7 @@ The `backend` option controls which driver is used:
 | `'mapepire'` | Always use mapepire (remote WebSocket) |
 | `'idb'` | Always use idb-pconnector (native IBM i ODBC) |
 
-Both backends produce identical query data. For a detailed comparison of result envelope differences, error message formats, and feature support, see [BACKEND-DIFFERENCES.md](BACKEND-DIFFERENCES.md).
+Both backends produce identical query data. For a detailed comparison of result envelope differences, error message formats, and feature support, see [BACKEND-DIFFERENCES.md](docs/BACKEND-DIFFERENCES.md).
 
 ### Pooled connections
 
@@ -209,7 +209,7 @@ await conn.close();
   - `size`: Number of connections to add when pool is exhausted (default: 8)
   - `expiry`: Expiry time for new connections in minutes (same rules as above)
 - `logLevel`: Log level threshold for this pool: `'error'` | `'info'` | `'debug'` | `'none'` (overrides the global `logLevel` from Pools Options)
-- `JDBCOptions`: JDBC options object. For mapepire backend, this is a standard Mapepire JDBCOptions object. For idb backend, `libraries`, `naming`, `transaction isolation`, and `auto commit` are supported (mapped to native ODBC calls). See [BACKEND-DIFFERENCES.md](BACKEND-DIFFERENCES.md) for details.
+- `JDBCOptions`: JDBC options object. For mapepire backend, this is a standard Mapepire JDBCOptions object. For idb backend, `libraries`, `naming`, `transaction isolation`, and `auto commit` are supported (mapped to native ODBC calls). See [BACKEND-DIFFERENCES.md](docs/BACKEND-DIFFERENCES.md) for details.
 - `initCommands`: Array of commands to execute when each connection is initialized. Each entry is an object with `command` (string) and optional `type` (`'cl'` or `'sql'`, defaults to `'cl'`). CL commands are executed via `QCMDEXC` with parameterised input; SQL commands are executed directly without parameterisation. **Security note:** SQL-type init commands must be trusted, developer-supplied strings — never pass unsanitised user input as an init command.
 - `healthCheck`: Health check settings
   - `onAttach`: Verify connections are alive before returning from `attach()` by executing a lightweight query (`VALUES 1`). Unhealthy connections are automatically retired and replaced. (default: `true`). Set to `false` to disable.

@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Mapepire backend now logs `Connected (mapepire-js)` (was `Connected`)
 - New examples: `standalone-connection.js`, `custom-logger.js`, `error-handling.js`
-- `BACKEND-DIFFERENCES.md` — comprehensive comparison of idb vs mapepire backend behaviour
+- `docs/BACKEND-DIFFERENCES.md` — comprehensive comparison of idb vs mapepire backend behaviour
 - Test for per-pool logger override
 - IDB backend: `transaction isolation` JDBCOption mapped to `setConnAttr(SQL_ATTR_COMMIT)` — supports `none`, `read uncommitted`, `read committed`, `repeatable read`, `serializable`
 - IDB backend: `auto commit` JDBCOption mapped to `setConnAttr(SQL_ATTR_AUTOCOMMIT)`

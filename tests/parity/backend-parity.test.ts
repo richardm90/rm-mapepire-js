@@ -27,7 +27,7 @@ const MAPEPIRE_CREDS = {
   rejectUnauthorized: false,
 };
 
-/** Fields that are expected to differ between backends (see BACKEND-DIFFERENCES.md) */
+/** Fields that are expected to differ between backends (see docs/BACKEND-DIFFERENCES.md) */
 function normalise(result: RmQueryResult<any>): {
   success: boolean;
   data: any[];
@@ -1007,7 +1007,7 @@ describeIf('Backend Parity', () => {
         const sql = `SELECT COL_DATE, COL_TIME, COL_TIMESTAMP FROM ${DT_TABLE} WHERE ROW_ID = 1`;
         const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
 
-        // Raw date/time formats differ between backends (documented in BACKEND-DIFFERENCES.md).
+        // Raw date/time formats differ between backends (documented in docs/BACKEND-DIFFERENCES.md).
         // The canonical VARCHAR_FORMAT test validates correctness; here we just verify
         // both backends return data without error.
         expect(idbRes.data.length).toBe(1);
@@ -1518,7 +1518,7 @@ describeIf('Backend Parity', () => {
   // correctly on both backends. A test procedure is created with IN,
   // OUT, and INOUT parameters of various types.
   //
-  // Known differences (see BACKEND-DIFFERENCES.md):
+  // Known differences (see docs/BACKEND-DIFFERENCES.md):
   //   - Both backends return entries for all parameters (IN + OUT + INOUT)
   //   - idb: value present on all parameters; mapepire: value only on OUT/INOUT
   //   - mapepire includes extra metadata (type, name, precision, scale, ccsid)
@@ -1832,7 +1832,7 @@ describeIf('Backend Parity', () => {
           const mapDate = mapParms.find((p: any) => p.index === 4);
           expect(idbDate.value).toBeDefined();
           expect(mapDate.value).toBeDefined();
-          // The actual format may differ (see BACKEND-DIFFERENCES.md raw DATE format)
+          // The actual format may differ (see docs/BACKEND-DIFFERENCES.md raw DATE format)
           // but both should represent the same date
         });
       } finally {
