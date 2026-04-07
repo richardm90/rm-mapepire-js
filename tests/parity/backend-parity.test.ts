@@ -1213,6 +1213,305 @@ describeIf('Backend Parity', () => {
   });
 
   // ===================================================================
+  // CCSID & UTF-8 character encoding parity
+  //
+  // Tests that non-ASCII and Unicode character data round-trips
+  // correctly through both backends and produces identical results.
+  // ===================================================================
+
+  describe('CCSID & UTF-8 character encoding', () => {
+    const ENC_LIB = 'PARITYTEST';
+    const ENC_TABLE = `${ENC_LIB}.ENCODING`;
+
+    beforeAll(async () => {
+      const setup = new RmConnection({ backend: 'idb' });
+      await setup.init(true);
+      try {
+        try {
+          await setup.execute(`CREATE SCHEMA ${ENC_LIB}`);
+        } catch (e: any) {
+          if (!e?.message?.includes('SQLCODE=-601')) throw e;
+        }
+
+        await setup.execute(`CREATE OR REPLACE TABLE ${ENC_TABLE} (
+          ROW_ID         INTEGER NOT NULL,
+          ROW_LABEL      VARCHAR(30) NOT NULL,
+          COL_CHAR       CHAR(40),
+          COL_VARCHAR    VARCHAR(200),
+          COL_GRAPHIC    GRAPHIC(20) CCSID 13488,
+          COL_VARGRAPHIC VARGRAPHIC(100) CCSID 13488,
+          COL_UTF8       VARCHAR(200) CCSID 1208
+        )`);
+
+        // Row 1: accented Latin characters
+        await setup.execute(`INSERT INTO ${ENC_TABLE} (ROW_ID, ROW_LABEL, COL_CHAR, COL_VARCHAR) VALUES (1, 'ACCENTED_LATIN', 'café résumé naïve', 'über straße Ñoño')`);
+
+        // Row 2: Western European mix (diacritics, ligatures, symbols)
+        await setup.execute(`INSERT INTO ${ENC_TABLE} (ROW_ID, ROW_LABEL, COL_CHAR, COL_VARCHAR) VALUES (2, 'WESTERN_EURO', 'àáâãäåæçèéêë', 'ìíîïðñòóôõöùúûüý')`);
+
+        // Row 3: CJK characters in GRAPHIC/VARGRAPHIC
+        await setup.execute(`INSERT INTO ${ENC_TABLE} (ROW_ID, ROW_LABEL, COL_GRAPHIC, COL_VARGRAPHIC) VALUES (3, 'CJK', '日本語テスト', '中文数据库测试')`);
+
+        // Row 4: mixed scripts in GRAPHIC/VARGRAPHIC
+        await setup.execute(`INSERT INTO ${ENC_TABLE} (ROW_ID, ROW_LABEL, COL_GRAPHIC, COL_VARGRAPHIC) VALUES (4, 'MIXED_SCRIPT', 'Hello 世界', 'café 東京 über')`);
+
+        // Row 5: accented characters in GRAPHIC/VARGRAPHIC
+        await setup.execute(`INSERT INTO ${ENC_TABLE} (ROW_ID, ROW_LABEL, COL_GRAPHIC, COL_VARGRAPHIC) VALUES (5, 'ACCENTED_GRAPHIC', 'àéîõü', 'ñçßøå')`);
+
+        // Row 6: emoji in VARGRAPHIC (supplementary Unicode / non-BMP)
+        // CCSID 13488 is UCS-2 which cannot represent characters above U+FFFF;
+        // this tests whether the database accepts or rejects them
+        try {
+          await setup.execute(`INSERT INTO ${ENC_TABLE} (ROW_ID, ROW_LABEL, COL_VARGRAPHIC) VALUES (6, 'EMOJI', '😀🎉🚀')`);
+        } catch (e) {
+          // Expected — UCS-2 cannot represent supplementary characters.
+          // Insert a marker row so the test can detect this.
+          await setup.execute(`INSERT INTO ${ENC_TABLE} (ROW_ID, ROW_LABEL) VALUES (6, 'EMOJI_UNSUPPORTED')`);
+        }
+
+        // Row 7: UTF-8 column with multi-byte content (Latin + CJK mix)
+        await setup.execute(`INSERT INTO ${ENC_TABLE} (ROW_ID, ROW_LABEL, COL_UTF8) VALUES (7, 'UTF8_MULTIBYTE', 'café 日本語 über')`);
+
+        // Row 8: UTF-8 column with Greek and Cyrillic
+        await setup.execute(`INSERT INTO ${ENC_TABLE} (ROW_ID, ROW_LABEL, COL_UTF8) VALUES (8, 'UTF8_EXTENDED', 'αβγδ АБВГ')`);
+
+        // Row 9: multi-byte length semantics — 'café' is 4 chars but 5 bytes in UTF-8
+        await setup.execute(`INSERT INTO ${ENC_TABLE} (ROW_ID, ROW_LABEL, COL_CHAR, COL_VARCHAR, COL_UTF8) VALUES (9, 'LENGTH_TEST', 'café', 'café', 'café')`);
+      } finally {
+        await setup.close();
+      }
+    }, 60_000);
+
+    afterAll(async () => {
+      const teardown = new RmConnection({ backend: 'idb' });
+      await teardown.init(true);
+      try {
+        await teardown.execute(`DROP TABLE ${ENC_TABLE}`);
+      } catch (e) { /* best-effort */ }
+      finally { await teardown.close(); }
+    });
+
+    it('accented Latin characters in CHAR/VARCHAR', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `SELECT COL_CHAR, COL_VARCHAR FROM ${ENC_TABLE} WHERE ROW_ID = 1`;
+        const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+
+        // Both backends should return identical character data
+        expect(normalise(idbRes)).toEqual(normalise(mapRes));
+
+        // Verify the actual content survived the round-trip
+        expect(idbRes.data[0].COL_CHAR).toBe('café résumé naïve');
+        expect(idbRes.data[0].COL_VARCHAR).toBe('über straße Ñoño');
+      });
+    });
+
+    it('Western European diacritics and special characters', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `SELECT COL_CHAR, COL_VARCHAR FROM ${ENC_TABLE} WHERE ROW_ID = 2`;
+        const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+
+        expect(normalise(idbRes)).toEqual(normalise(mapRes));
+
+        expect(idbRes.data[0].COL_CHAR).toBe('àáâãäåæçèéêë');
+        expect(idbRes.data[0].COL_VARCHAR).toBe('ìíîïðñòóôõöùúûüý');
+      });
+    });
+
+    it('CJK characters in GRAPHIC/VARGRAPHIC', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `SELECT COL_GRAPHIC, COL_VARGRAPHIC FROM ${ENC_TABLE} WHERE ROW_ID = 3`;
+        const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+
+        expect(normalise(idbRes)).toEqual(normalise(mapRes));
+
+        expect(idbRes.data[0].COL_GRAPHIC).toBe('日本語テスト');
+        expect(idbRes.data[0].COL_VARGRAPHIC).toBe('中文数据库测试');
+      });
+    });
+
+    it('mixed scripts in GRAPHIC/VARGRAPHIC', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `SELECT COL_GRAPHIC, COL_VARGRAPHIC FROM ${ENC_TABLE} WHERE ROW_ID = 4`;
+        const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+
+        expect(normalise(idbRes)).toEqual(normalise(mapRes));
+
+        expect(idbRes.data[0].COL_GRAPHIC).toBe('Hello 世界');
+        expect(idbRes.data[0].COL_VARGRAPHIC).toBe('café 東京 über');
+      });
+    });
+
+    it('accented characters in GRAPHIC/VARGRAPHIC', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `SELECT COL_GRAPHIC, COL_VARGRAPHIC FROM ${ENC_TABLE} WHERE ROW_ID = 5`;
+        const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+
+        expect(normalise(idbRes)).toEqual(normalise(mapRes));
+
+        expect(idbRes.data[0].COL_GRAPHIC).toBe('àéîõü');
+        expect(idbRes.data[0].COL_VARGRAPHIC).toBe('ñçßøå');
+      });
+    });
+
+    it('emoji/supplementary Unicode in VARGRAPHIC (UCS-2 boundary)', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `SELECT ROW_LABEL, COL_VARGRAPHIC FROM ${ENC_TABLE} WHERE ROW_ID = 6`;
+        const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+
+        const label = idbRes.data[0].ROW_LABEL;
+
+        if (label === 'EMOJI_UNSUPPORTED') {
+          // UCS-2 rejected the supplementary characters — both backends
+          // should see the marker row with no VARGRAPHIC data
+          expect(idbRes.data[0].COL_VARGRAPHIC).toBeNull();
+          expect(mapRes.data[0].COL_VARGRAPHIC).toBeNull();
+        } else {
+          // Database accepted the emoji — verify both backends agree
+          expect(normalise(idbRes)).toEqual(normalise(mapRes));
+          expect(idbRes.data[0].COL_VARGRAPHIC).toBe('😀🎉🚀');
+        }
+      });
+    });
+
+    it('UTF-8 column with multi-byte content (VARCHAR CCSID 1208)', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `SELECT COL_UTF8 FROM ${ENC_TABLE} WHERE ROW_ID = 7`;
+        const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+
+        expect(normalise(idbRes)).toEqual(normalise(mapRes));
+        expect(idbRes.data[0].COL_UTF8).toBe('café 日本語 über');
+      });
+    });
+
+    it('UTF-8 column with Greek and Cyrillic characters', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `SELECT COL_UTF8 FROM ${ENC_TABLE} WHERE ROW_ID = 8`;
+        const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+
+        expect(normalise(idbRes)).toEqual(normalise(mapRes));
+        expect(idbRes.data[0].COL_UTF8).toBe('αβγδ АБВГ');
+      });
+    });
+
+    it('multi-byte character length semantics (CHAR padding and trimming)', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `SELECT COL_CHAR, COL_VARCHAR, COL_UTF8 FROM ${ENC_TABLE} WHERE ROW_ID = 9`;
+        const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+
+        expect(normalise(idbRes)).toEqual(normalise(mapRes));
+
+        // All three columns should return 'café' with correct character count
+        // despite é being multi-byte in UTF-8
+        expect(idbRes.data[0].COL_CHAR).toBe('café');
+        expect(idbRes.data[0].COL_VARCHAR).toBe('café');
+        expect(idbRes.data[0].COL_UTF8).toBe('café');
+
+        // JavaScript string length should be 4 characters, not 5 bytes
+        expect(idbRes.data[0].COL_CHAR.length).toBe(4);
+        expect(idbRes.data[0].COL_VARCHAR.length).toBe(4);
+        expect(idbRes.data[0].COL_UTF8.length).toBe(4);
+      });
+    });
+
+    it('all encoding rows match across backends', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `SELECT ROW_ID, ROW_LABEL, COL_CHAR, COL_VARCHAR, COL_GRAPHIC, COL_VARGRAPHIC, COL_UTF8 FROM ${ENC_TABLE} ORDER BY ROW_ID`;
+        const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+
+        // Same number of rows
+        expect(idbRes.data.length).toBe(mapRes.data.length);
+
+        // Every row should produce identical data from both backends
+        for (let i = 0; i < idbRes.data.length; i++) {
+          expect(idbRes.data[i]).toEqual(mapRes.data[i]);
+        }
+      });
+    });
+  });
+
+  // ===================================================================
+  // CCSID & UTF-8 write-path parity
+  //
+  // The tests above insert data via idb and read from both backends.
+  // These tests verify that each backend can independently round-trip
+  // non-ASCII character data (write then read within the same backend).
+  // ===================================================================
+
+  describe('CCSID & UTF-8 write-path parity', () => {
+    const WP_LIB = 'PARITYTEST';
+    const WP_TABLE = `${WP_LIB}.ENC_WRITE`;
+
+    beforeAll(async () => {
+      const setup = new RmConnection({ backend: 'idb' });
+      await setup.init(true);
+      try {
+        try {
+          await setup.execute(`CREATE SCHEMA ${WP_LIB}`);
+        } catch (e: any) {
+          if (!e?.message?.includes('SQLCODE=-601')) throw e;
+        }
+
+        await setup.execute(`CREATE OR REPLACE TABLE ${WP_TABLE} (
+          ROW_ID         INTEGER NOT NULL,
+          ROW_LABEL      VARCHAR(30) NOT NULL,
+          COL_CHAR       CHAR(40),
+          COL_VARCHAR    VARCHAR(200),
+          COL_GRAPHIC    GRAPHIC(20) CCSID 13488,
+          COL_VARGRAPHIC VARGRAPHIC(100) CCSID 13488,
+          COL_UTF8       VARCHAR(200) CCSID 1208
+        )`);
+      } finally {
+        await setup.close();
+      }
+    }, 60_000);
+
+    afterAll(async () => {
+      const teardown = new RmConnection({ backend: 'idb' });
+      await teardown.init(true);
+      try {
+        await teardown.execute(`DROP TABLE ${WP_TABLE}`);
+      } catch (e) { /* best-effort */ }
+      finally { await teardown.close(); }
+    });
+
+    it('idb write and read round-trip (all column types)', async () => {
+      const conn = new RmConnection({ backend: 'idb' });
+      await conn.init(true);
+      try {
+        await conn.execute(`INSERT INTO ${WP_TABLE} (ROW_ID, ROW_LABEL, COL_CHAR, COL_VARCHAR, COL_GRAPHIC, COL_VARGRAPHIC, COL_UTF8) VALUES (1, 'IDB_ROUNDTRIP', 'café résumé', 'über straße', '日本語テスト', 'café 東京 über', 'αβγδ АБВГ')`);
+
+        const res = await conn.execute(`SELECT COL_CHAR, COL_VARCHAR, COL_GRAPHIC, COL_VARGRAPHIC, COL_UTF8 FROM ${WP_TABLE} WHERE ROW_ID = 1`);
+
+        expect(res.data[0].COL_CHAR).toBe('café résumé');
+        expect(res.data[0].COL_VARCHAR).toBe('über straße');
+        expect(res.data[0].COL_GRAPHIC).toBe('日本語テスト');
+        expect(res.data[0].COL_VARGRAPHIC).toBe('café 東京 über');
+        expect(res.data[0].COL_UTF8).toBe('αβγδ АБВГ');
+      } finally {
+        await conn.close();
+      }
+    });
+
+    it('mapepire write and read round-trip (all column types)', async () => {
+      const conn = new RmConnection({ backend: 'mapepire', creds: MAPEPIRE_CREDS });
+      await conn.init(true);
+      try {
+        await conn.execute(`INSERT INTO ${WP_TABLE} (ROW_ID, ROW_LABEL, COL_CHAR, COL_VARCHAR, COL_GRAPHIC, COL_VARGRAPHIC, COL_UTF8) VALUES (2, 'MAP_ROUNDTRIP', 'café résumé', 'über straße', '日本語テスト', 'café 東京 über', 'αβγδ АБВГ')`);
+
+        const res = await conn.execute(`SELECT COL_CHAR, COL_VARCHAR, COL_GRAPHIC, COL_VARGRAPHIC, COL_UTF8 FROM ${WP_TABLE} WHERE ROW_ID = 2`);
+
+        expect(res.data[0].COL_CHAR).toBe('café résumé');
+        expect(res.data[0].COL_VARCHAR).toBe('über straße');
+        expect(res.data[0].COL_GRAPHIC).toBe('日本語テスト');
+        expect(res.data[0].COL_VARGRAPHIC).toBe('café 東京 über');
+        expect(res.data[0].COL_UTF8).toBe('αβγδ АБВГ');
+      } finally {
+        await conn.close();
+      }
+    });
+  });
+
+  // ===================================================================
   // Stored procedure output parameters
   //
   // Tests that output parameters from stored procedures are returned
