@@ -3,7 +3,7 @@
  *
  * These tests compare the performance of the mapepire and idb backends
  * running on the same IBM i system. They are designed to complement
- * Liam Barry's benchmarks (which tested remote ODBC vs Mapepire from a Mac)
+ * Liam's benchmarks (which tested remote ODBC vs Mapepire from a Mac)
  * by measuring both backends locally on IBM i.
  *
  * These tests are NOT part of the regular `npm test` suite. They require:
@@ -38,13 +38,13 @@ const QUERY_COUNT = Number(process.env.QUERY_COUNT) || 50;
 /** Number of warm-up queries before measurement */
 const WARMUP_COUNT = 3;
 
-/** Pool size (matches Liam Barry's benchmark) */
+/** Pool size (matches Liam's benchmark) */
 const POOL_SIZE = 5;
 
 /** SAMPLE schema name (configurable via SAMPLE_SCHEMA env var) */
 const SAMPLE_SCHEMA = process.env.SAMPLE_SCHEMA || 'SAMPLE';
 
-/** SQL statement for standard benchmarks (same as Liam Barry's) */
+/** SQL statement for standard benchmarks (same as Liam's) */
 const SQL_STANDARD = `SELECT * FROM ${SAMPLE_SCHEMA}.DEPARTMENT`;
 
 /** SQL statement for large result set benchmarks */

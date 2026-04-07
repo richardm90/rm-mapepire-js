@@ -83,9 +83,14 @@ Mapepire requires a Java server process that consumes its own CPU and memory. id
 
 ### Concurrent Request Handling
 
-This is one area where Mapepire has an architectural advantage. Its WebSocket protocol uses an async, id-correlated model where multiple queries can be in-flight on a single connection without serializing. Liam's benchmarks ([blog #69](https://github.com/worksofliam/blog/issues/69)) demonstrated that Mapepire handles concurrent requests more gracefully than ODBC-based connectors.
+Mapepire's WebSocket protocol supports **multiplexing** — an async, id-correlated model where multiple queries can be in-flight on a single connection without serializing. Each request is assigned a unique ID, sent immediately over the WebSocket, and responses are routed back to the correct caller by ID. Liam's benchmarks ([blog #69](https://github.com/worksofliam/blog/issues/69)) demonstrated that this gives Mapepire a significant advantage over ODBC-based connectors when connecting remotely.
 
-However, this advantage is largely mitigated when using connection pooling (as rm-connector-js does), since each consumer gets its own dedicated connection.
+idb-connector, by contrast, can only process one query at a time per connection. Concurrency requires multiple connections via a pool.
+
+rm-connector-js's RmPool treats both backends as one-query-at-a-time (the lowest common denominator), which means it does not take advantage of Mapepire's multiplexing. Benchmark results (see below) show this trade-off has different impacts depending on where the application runs:
+
+- **On IBM i (local loopback)**: Serialized pooling is actually faster than multiplexing, because flooding server jobs with concurrent requests degrades performance when there is no network latency to hide behind.
+- **Off IBM i (remote)**: Multiplexing provides a massive throughput advantage (up to 26x in testing), meaning rm-connector-js's serialized pooling leaves significant Mapepire performance on the table for concurrent workloads. For sequential development workflows this is an acceptable trade-off.
 
 ## Summary
 
@@ -131,6 +136,7 @@ All values are median query times in milliseconds, averaged across 3 independent
 **Notes:**
 - Sequential means the queries run in serial (one query at a time, `await` in a `for` loop).
 - The `Promise.all` tests fire all queries concurrently. The per-query medians above include time spent **waiting in the connection queue**, not just executing SQL. With 5 pool connections and 1000 queries, each query spends most of its measured time waiting its turn. For this reason the **wall clock time** (total time to complete the entire batch) is more meaningful for the Promise.all scenarios.
+- The pool Promise.all tests rely on rm-connector-js's health check (enabled by default) slowing down each `attach()` call enough for earlier queries to complete and release their connections. Without the health check, the pool throws a "Maximum number of connections" error when concurrent demand exceeds pool size, because RmPool does not queue waiting requests — unlike Liam's ODBC pool (which has a built-in FIFO queue) or Mapepire's native pool (which multiplexes). This timing dependency is proven by the `pool-contention-proof` test suite.
 
 ### Wall Clock Times (Promise.all scenarios)
 
@@ -153,16 +159,85 @@ The pool Promise.all wall clock is the best throughput metric: it shows how quic
 - **Connection creation** shows a stable ~4x advantage on median, though the first idb connection consistently hits ~145-165ms (vs a ~6ms minimum), likely due to cold-start activation of the first QSQSRVR prestart job.
 - **Mapepire shows larger outliers under sustained load.** At 1000 queries, mapepire's max times grow disproportionately (e.g., parameterized query max: 73ms in one run vs idb's 5.67ms), suggesting occasional GC (Garbage Collection) pauses or WebSocket congestion in the Java server.
 
+### Native Mapepire Pool vs idb (Multiplexing Test)
+
+Mapepire's WebSocket protocol supports **multiplexing** — sending multiple queries concurrently on a single connection, with responses routed back by ID. This is fundamentally different from idb-connector, where each ODBC connection can only process one query at a time. rm-connector-js's RmPool treats both backends as one-query-at-a-time (the lowest common denominator), so the standard benchmarks above do not take advantage of Mapepire's multiplexing.
+
+To determine whether Mapepire's multiplexing could compensate for its higher per-query latency, a separate test was run comparing the **native @ibm/mapepire-js Pool** (with full multiplexing) against **idb-connector through RmPool** (one-at-a-time per connection). Both used 5 connections.
+
+| Scenario | idb Wall Clock | Mapepire (native) Wall Clock | Ratio |
+|---|---|---|---|
+| Sequential (50q) | 46ms | 59ms | **idb 1.3x faster** |
+| Promise.all (50q) | 30ms | 240ms | **idb 8.0x faster** |
+| High concurrency (100q) | 50ms | 235ms | **idb 4.7x faster** |
+
+**Multiplexing does not help on local IBM i — it makes things worse.** Even with all 50 queries in-flight simultaneously across 5 WebSocket connections, native Mapepire took 240ms vs idb's 30ms.
+
+This is because multiplexing's benefit is hiding **network latency** behind concurrent requests (as demonstrated in Liam's remote benchmarks from a Mac). On local loopback:
+
+- The WebSocket overhead (JSON serialization, TLS, Java processing) still applies to every query
+- The 5 QZDASOINIT server jobs are the bottleneck — flooding them with 10 concurrent queries each does not make them process faster
+- The additional contention within each server job likely degrades performance further
+- Meanwhile idb's 5 QSQSRVR jobs each process one query at a time with zero protocol overhead
+
+This confirms that rm-connector-js's approach of using idb-connector on IBM i is the optimal choice — there is no concurrency model that allows Mapepire to match idb's throughput when both run on the same machine.
+
+### Native Mapepire Pool vs rm-connector-js Mapepire Pool
+
+It is also worth comparing Mapepire's native pool against Mapepire accessed through rm-connector-js, to understand the overhead of the abstraction layer and whether rm-connector-js's serialized pooling model costs or benefits Mapepire performance.
+
+**Sequential per-query median (50q):**
+
+| Route | Median |
+|---|---|
+| Native mapepire `pool.execute()` | 1.08ms |
+| rm-connector-js single connection `execute()` | 1.44ms |
+| rm-connector-js pool `query()` | 2.46ms |
+
+The native pool is fastest because it calls Mapepire directly. The rm-connector-js single connection adds a thin wrapper. The rm-connector-js pool is slowest because each query includes attach, health check, execute, and detach overhead.
+
+**Promise.all wall clock (50q):**
+
+| Route | Wall Clock |
+|---|---|
+| rm-connector-js mapepire pool (serialized) | ~86ms |
+| Native mapepire pool (multiplexed) | 240ms |
+
+The rm-connector-js serialized approach is **2.8x faster** than native Mapepire's multiplexing for concurrent workloads on IBM i. Queuing queries and sending them one-at-a-time per connection is more efficient than flooding each QZDASOINIT job with 10 concurrent requests.
+
+This means rm-connector-js's one-at-a-time pool model is not just a lowest-common-denominator compromise — it is actually the better strategy for both backends when running locally on IBM i.
+
+### Remote: Native Mapepire Pool vs rm-connector-js Mapepire Pool
+
+The local IBM i results above show that multiplexing hurts performance when there is no network latency. To test the opposite scenario, the same comparison was run **remotely from a development PC** connecting to IBM i over a real network (~100ms round-trip).
+
+| Scenario | rm-connector-js Wall Clock | Native Mapepire Wall Clock | Ratio |
+|---|---|---|---|
+| Sequential (50q) | 10,421ms | 5,208ms | **native 2.0x faster** |
+| Promise.all (50q) | 5,144ms | 313ms | **native 16.4x faster** |
+| High concurrency (100q) | 11,787ms | 443ms | **native 26.6x faster** |
+
+Over a real network, multiplexing makes an enormous difference:
+
+- **Sequential**: Native Mapepire is 2x faster because rm-connector-js's pool adds attach/health-check/detach overhead, and each round trip costs ~100ms over the network — amplifying that overhead significantly.
+- **Promise.all**: This is where multiplexing dominates. Native Mapepire fires all 50 queries down 5 WebSocket connections simultaneously and gets all results back in 313ms. rm-connector-js queues them one-at-a-time per connection, taking 5.1 seconds — each query pays the full ~200ms round-trip sequentially.
+- **High concurrency**: The gap widens further at 100 queries — 443ms vs 11.8 seconds.
+
+This reveals a clear trade-off in rm-connector-js's design:
+
+- **On IBM i (production)**: The serialized pool model is optimal — idb-connector wins regardless, and serialized access is actually faster than multiplexing on local loopback.
+- **Off IBM i (development)**: The serialized pool model leaves significant Mapepire performance on the table, especially for concurrent workloads. However, for development purposes (where convenience matters more than throughput) this is an acceptable trade-off.
+
 ### Reproducing These Benchmarks
 
-The benchmark suite is included in the rm-connector-js test suite. To run it:
+The benchmark suite is included in the rm-connector-js test suite. All tests require environment variables: `IBMI_HOST`, `IBMI_USER`, `IBMI_PASSWORD`.
 
 1. Ensure the SAMPLE schema exists on your IBM i:
    ```sql
    CALL QSYS.CREATE_SQL_SAMPLE('SAMPLE');
    ```
 
-2. Run the performance tests:
+2. Run all performance tests (idb vs mapepire through rm-connector-js):
    ```bash
    IBMI_HOST=myibmi.com IBMI_USER=MYUSER IBMI_PASSWORD=MYPASS npm run test:performance
    ```
@@ -172,9 +247,31 @@ The benchmark suite is included in the rm-connector-js test suite. To run it:
    QUERY_COUNT=200 SAMPLE_SCHEMA=MYLIB IBMI_HOST=myibmi.com IBMI_USER=MYUSER IBMI_PASSWORD=MYPASS npm run test:performance
    ```
 
+4. Run individual test suites separately:
+   ```bash
+   # idb vs mapepire through rm-connector-js (on IBM i)
+   npx jest --config jest.perf.config.js backend-performance
+
+   # Native mapepire pool vs idb through RmPool (on IBM i)
+   npx jest --config jest.perf.config.js native-mapepire-pool
+
+   # Native mapepire pool vs rm-connector-js mapepire pool (from remote dev PC)
+   npx jest --config jest.perf.config.js remote-mapepire-pool
+
+   # Pool contention proof (on IBM i)
+   npx jest --config jest.perf.config.js pool-contention-proof
+   ```
+
 ## Conclusion
 
 The performance benefits of idb-connector over Mapepire when running on IBM i are real and stem from fundamental architectural differences: no network layer, no serialization overhead, no intermediary server process, and fewer data copies. These are not micro-optimizations that could disappear with a library update; they are inherent to the design of each connector.
+
+Key findings:
+
+- **On IBM i, idb-connector is 2-3x faster** for typical sequential workloads and up to 8x faster under concurrent load, even when compared against Mapepire's native multiplexing capabilities.
+- **Mapepire's multiplexing does not compensate** for its per-query overhead when both connectors run on the same machine. Serialized, one-at-a-time access is actually faster on local loopback because it avoids flooding server jobs with concurrent requests.
+- **Over a real network, multiplexing is transformative** — native Mapepire pools are up to 26x faster than rm-connector-js's serialized pooling for concurrent workloads, because multiplexing hides network latency behind parallel requests.
+- **rm-connector-js's serialized pool model is the right trade-off.** On IBM i (production), it matches the optimal strategy for idb-connector. Off IBM i (development), it leaves Mapepire throughput on the table for concurrent workloads, but this is acceptable since development workflows prioritise convenience over raw performance.
 
 The rm-connector-js approach of using Mapepire for off-IBM i development and idb-connector for on-IBM i production combines the convenience of cross-platform development with the performance benefits of native database access where it matters most.
 
