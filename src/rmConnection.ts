@@ -17,6 +17,7 @@ class RmConnection {
   logger: Logger;
   keepalive: number | null;
   backend: BackendType;
+  multiplex: boolean;
   private backendImpl!: BackendConnection;
   private keepaliveTimerId: NodeJS.Timeout | null;
   rmLogger: RmLogger;
@@ -30,6 +31,7 @@ class RmConnection {
     this.logger = opts.logger || defaultLogger;
     this.keepalive = opts.keepalive ?? null;
     this.backend = opts.backend || 'auto';
+    this.multiplex = opts.multiplex ?? false;
     this.keepaliveTimerId = null;
     this.rmLogger = new RmLogger(this.logger, this.logLevel, 'RmConnection');
   }
@@ -43,6 +45,10 @@ class RmConnection {
 
   async init(suppressConnectionMessage: boolean = false): Promise<void> {
     const resolved = this.resolveBackend();
+
+    if (this.multiplex && resolved === 'idb') {
+      throw new Error('RmConnection: multiplex mode is not supported with the idb backend (idb is single-threaded shared-memory IPC; use the mapepire backend for multiplexing)');
+    }
 
     if (resolved === 'idb') {
       const { IdbBackend } = require('./backends/idb');

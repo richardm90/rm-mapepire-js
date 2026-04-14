@@ -13,6 +13,7 @@ export interface RmConnectionOptions {
   logger?: Logger;
   keepalive?: number | null;
   backend?: BackendType;
+  multiplex?: boolean;
 }
 
 export interface RmQueryResult<T> extends QueryResult<T> {
@@ -50,6 +51,7 @@ export interface PoolOptions {
   healthCheck?: HealthCheckConfig;
   logger?: Logger;
   backend?: BackendType;
+  multiplex?: boolean;
 }
 
 export interface PoolConfig {

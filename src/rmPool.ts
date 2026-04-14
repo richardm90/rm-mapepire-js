@@ -15,6 +15,8 @@ class RmPool extends EventEmitter {
   initCommands: any[];
   healthCheckOnAttach: boolean;
   keepaliveInterval: number | null;
+  multiplex: boolean;
+  private nextMultiplexIndex: number;
   logLevel: LogLevel;
   logger: Logger;
   rmLogger: RmLogger;
@@ -68,6 +70,12 @@ class RmPool extends EventEmitter {
     this.initCommands = opts.initCommands || [];
     this.healthCheckOnAttach = opts.healthCheck?.onAttach ?? true;
     this.keepaliveInterval = opts.healthCheck?.keepalive ?? null;
+    this.multiplex = opts.multiplex ?? false;
+    this.nextMultiplexIndex = 0;
+
+    if (this.multiplex && opts.backend === 'idb') {
+      throw new Error('RmPool: multiplex mode is not supported with the idb backend (use the mapepire backend)');
+    }
     this.logLevel = opts.logLevel ?? logLevel;
     this.logger = opts.logger || logger || defaultLogger;
     this.rmLogger = new RmLogger(this.logger, this.logLevel, 'RmPool', `Pool: ${this.id}`);
@@ -168,6 +176,10 @@ class RmPool extends EventEmitter {
    * @returns {boolean} - true if detached successfully
    */
   async detach(connection: RmPoolConnection): Promise<boolean> {
+    if (this.multiplex) {
+      // No exclusive ownership to release; lifetime is governed by retire/close.
+      return true;
+    }
     const index = connection.poolIndex;
     try {
       await connection.detach();
@@ -223,9 +235,12 @@ class RmPool extends EventEmitter {
    * the serialized attach() method above.
    */
   private async _attach(): Promise<RmPoolConnection> {
+    if (this.multiplex) {
+      return this._attachMultiplex();
+    }
+
     const size = this.incrementConnections.size!;
     let validConnection = false;
-    let connection: RmPoolConnection | undefined;
     let i: number;
     let increasedPoolSize = false;
     let healthCheckRetries = 0;
@@ -298,6 +313,34 @@ class RmPool extends EventEmitter {
   }
 
   /**
+   * Multiplex mode: connections are shared. Round-robin across the existing
+   * pool members without claiming exclusive ownership. Skips per-attach health
+   * checks (use the keepalive health check instead). Grows the pool on first
+   * use up to initialConnections.size if it is empty.
+   */
+  private async _attachMultiplex(): Promise<RmPoolConnection> {
+    if (this.connections.length === 0) {
+      const size = Math.min(this.initialConnections.size!, this.maxSize);
+      const promises: Promise<RmPoolConnection>[] = [];
+      for (let i = 0; i < size; i += 1) {
+        promises.push(this.createConnection(this.initialConnections.expiry));
+      }
+      await Promise.all(promises);
+    }
+
+    if (this.connections.length === 0) {
+      throw new Error('RmPool: no connections available in multiplex mode');
+    }
+
+    const idx = this.nextMultiplexIndex % this.connections.length;
+    this.nextMultiplexIndex = (this.nextMultiplexIndex + 1) % Number.MAX_SAFE_INTEGER;
+    const connection = this.connections[idx];
+    this.rmLogger.debug(`Multiplex attach: connection ${connection.poolIndex} (in-flight=${connection.inFlight})`);
+    this.emit('connection:attached', { poolId: this.id, poolIndex: connection.poolIndex, multiplex: true });
+    return connection;
+  }
+
+  /**
    * Executes a query using a connection from the pool.
    * Automatically handles attach/query/detach lifecycle.
    * @param {string} sql - SQL statement to execute
@@ -344,12 +387,23 @@ class RmPool extends EventEmitter {
    * Flags the connection as expired and retires it.
    */
   async setExpired(conn: RmPoolConnection): Promise<void> {
+    if (this.multiplex && conn.inFlight > 0) {
+      // Defer retirement until in-flight queries finish. Reschedule a short check.
+      this.rmLogger.debug(`Connection ${conn.poolIndex} expiry deferred (inFlight=${conn.inFlight})`);
+      conn.expiryTimerId = setTimeout(this.setExpired.bind(this), 1000, conn);
+      return;
+    }
+
     conn.setAvailable(false);
     this.rmLogger.debug(`Connection ${conn.poolIndex} expired`);
     this.emit('connection:expired', { poolId: this.id, poolIndex: conn.poolIndex });
 
     try {
       await this.retire(conn);
+      if (this.multiplex && this.connections.length === 0) {
+        // Repopulate so subsequent attaches still find a connection.
+        await this.createConnection(this.initialConnections.expiry);
+      }
     } catch (error) {
       this.rmLogger.error(`Failed to retire expired connection ${conn.poolIndex}: ${error}`);
     }

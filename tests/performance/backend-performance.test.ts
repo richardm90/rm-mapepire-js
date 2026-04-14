@@ -121,13 +121,19 @@ function formatMs(ms: number): string {
   return ms.toFixed(2) + 'ms';
 }
 
+// Write directly to stdout to bypass Jest's console.log decoration
+// (which prefixes each line with "console.log" and a source location).
+const println = (s: string = ''): void => {
+  process.stdout.write(s + '\n');
+};
+
 function printComparison(label: string, idbStats: Stats, mapepireStats: Stats): void {
-  console.log('');
-  console.log(`  ┌─────────────────────────────────────────────────────────────────┐`);
-  console.log(`  │ ${label.padEnd(63)} │`);
-  console.log(`  ├──────────────────┬──────────────────┬──────────────────┬────────┤`);
-  console.log(`  │ Metric           │ idb              │ mapepire         │ Ratio  │`);
-  console.log(`  ├──────────────────┼──────────────────┼──────────────────┼────────┤`);
+  println('');
+  println(`  ┌─────────────────────────────────────────────────────────────────┐`);
+  println(`  │ ${label.padEnd(63)} │`);
+  println(`  ├──────────────────┬──────────────────┬──────────────────┬────────┤`);
+  println(`  │ Metric           │ idb              │ mapepire         │ Ratio  │`);
+  println(`  ├──────────────────┼──────────────────┼──────────────────┼────────┤`);
 
   const rows: [string, number, number][] = [
     ['Min', idbStats.min, mapepireStats.min],
@@ -141,13 +147,13 @@ function printComparison(label: string, idbStats: Stats, mapepireStats: Stats): 
   for (const [metric, idb, map] of rows) {
     const r = map / idb;
     const ratioStr = r > 1 ? `${r.toFixed(1)}x` : `${(1 / r).toFixed(1)}x`;
-    console.log(
+    println(
       `  │ ${metric.padEnd(16)} │ ${formatMs(idb).padStart(16)} │ ${formatMs(map).padStart(16)} │ ${ratioStr.padStart(6)} │`,
     );
   }
 
-  console.log(`  └──────────────────┴──────────────────┴──────────────────┴────────┘`);
-  console.log(`  Queries: ${idbStats.count}, Warm-up: ${WARMUP_COUNT}`);
+  println(`  └──────────────────┴──────────────────┴──────────────────┴────────┘`);
+  println(`  Queries: ${idbStats.count}, Warm-up: ${WARMUP_COUNT}`);
 }
 
 // ---------------------------------------------------------------------------

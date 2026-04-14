@@ -51,7 +51,7 @@ export class Connection {
 // Expose instances for tests
 (Connection as any).__instances = instances;
 
-// ODBC constants (matching idb-connector values)
+// DB2 CLI constants (matching idb-connector values)
 export const SQL_ATTR_COMMIT = 0;
 export const SQL_TXN_NO_COMMIT = 0;
 export const SQL_TXN_READ_UNCOMMITTED = 1;

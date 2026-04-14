@@ -7,7 +7,7 @@ This document details the differences between the two backends based on testing 
 | Item | idb | mapepire |
 |---|---|---|
 | **Job subsystem** | `QSQSRVR` | `QZDASOINIT` |
-| **Connection protocol** | Native ODBC (in-process) | WebSocket (remote) |
+| **Connection protocol** | Native DB2 CLI (in-process, links against IBM i Db2 Call Level Interface) | WebSocket (remote) |
 | **Connection creation speed** | ~5-25ms per connection | ~100-250ms per connection |
 | **Connected log message** | `Connected (idb-pconnector)` | `Connected (mapepire-js)` |
 

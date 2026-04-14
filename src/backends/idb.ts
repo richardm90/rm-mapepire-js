@@ -26,7 +26,7 @@ interface IdbStatement {
   close(): void;
 }
 
-// ODBC constants (SQL_ATTR_COMMIT, SQL_TXN_*, SQL_ATTR_AUTOCOMMIT, etc.) are
+// DB2 CLI constants (SQL_ATTR_COMMIT, SQL_TXN_*, SQL_ATTR_AUTOCOMMIT, etc.) are
 // loaded dynamically from idb-pconnector (re-exported from idb-connector).
 
 export class IdbBackend implements BackendConnection {

@@ -2,10 +2,10 @@
  * Native Mapepire Pool vs idb through RmPool
  *
  * This test compares raw Mapepire pool performance (with multiplexing)
- * against idb-connector through rm-connector-js's RmPool. The goal is
+ * against idb-pconnector through rm-connector-js's RmPool. The goal is
  * to determine whether Mapepire's ability to multiplex queries on a
  * single WebSocket connection can compensate for its higher per-query
- * latency when compared to idb's native ODBC path.
+ * latency when compared to idb's native DB2 CLI path.
  *
  * rm-connector-js treats each connection as one-query-at-a-time (the
  * lowest common denominator for both backends). Native Mapepire pools
@@ -83,13 +83,18 @@ function formatMs(ms: number): string {
   return ms.toFixed(2) + 'ms';
 }
 
+// Bypass Jest's console.log decoration by writing directly to stdout.
+const println = (s: string = ''): void => {
+  process.stdout.write(s + '\n');
+};
+
 function printComparison(label: string, idbStats: Stats, mapepireStats: Stats): void {
-  console.log('');
-  console.log(`  ┌─────────────────────────────────────────────────────────────────┐`);
-  console.log(`  │ ${label.padEnd(63)} │`);
-  console.log(`  ├──────────────────┬──────────────────┬──────────────────┬────────┤`);
-  console.log(`  │ Metric           │ idb (RmPool)     │ mapepire (native)│ Ratio  │`);
-  console.log(`  ├──────────────────┼──────────────────┼──────────────────┼────────┤`);
+  println('');
+  println(`  ┌─────────────────────────────────────────────────────────────────┐`);
+  println(`  │ ${label.padEnd(63)} │`);
+  println(`  ├──────────────────┬──────────────────┬──────────────────┬────────┤`);
+  println(`  │ Metric           │ idb (RmPool)     │ mapepire (native)│ Ratio  │`);
+  println(`  ├──────────────────┼──────────────────┼──────────────────┼────────┤`);
 
   const rows: [string, number, number][] = [
     ['Min', idbStats.min, mapepireStats.min],
@@ -103,13 +108,13 @@ function printComparison(label: string, idbStats: Stats, mapepireStats: Stats): 
   for (const [metric, idb, map] of rows) {
     const r = map / idb;
     const ratioStr = r > 1 ? `${r.toFixed(1)}x` : `${(1 / r).toFixed(1)}x`;
-    console.log(
+    println(
       `  │ ${metric.padEnd(16)} │ ${formatMs(idb).padStart(16)} │ ${formatMs(map).padStart(16)} │ ${ratioStr.padStart(6)} │`,
     );
   }
 
-  console.log(`  └──────────────────┴──────────────────┴──────────────────┴────────┘`);
-  console.log(`  Queries: ${idbStats.count}, Warm-up: ${WARMUP_COUNT}, Pool size: ${POOL_SIZE}`);
+  println(`  └──────────────────┴──────────────────┴──────────────────┴────────┘`);
+  println(`  Queries: ${idbStats.count}, Warm-up: ${WARMUP_COUNT}, Pool size: ${POOL_SIZE}`);
 }
 
 // ---------------------------------------------------------------------------

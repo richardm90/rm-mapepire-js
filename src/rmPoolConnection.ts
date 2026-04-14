@@ -17,6 +17,8 @@ class RmPoolConnection {
   expiry?: number | null;
   keepalive: number | null;
   backend: BackendType;
+  multiplex: boolean;
+  inFlight: number;
   logger: Logger;
   rmLogger: RmLogger;
 
@@ -31,6 +33,8 @@ class RmPoolConnection {
     this.expiryTimerId = null;
     this.keepalive = pool.PoolOptions?.healthCheck?.keepalive ?? null;
     this.backend = pool.PoolOptions?.backend || 'auto';
+    this.multiplex = pool.PoolOptions?.multiplex ?? false;
+    this.inFlight = 0;
     this.logger = logger || pool.PoolOptions?.logger || defaultLogger;
     this.rmLogger = new RmLogger(this.logger, this.logLevel, 'RmPoolConnection', `Pool: ${this.poolId}`);
   }
@@ -47,6 +51,7 @@ class RmPoolConnection {
       logger: this.logger,
       keepalive: this.keepalive,
       backend: this.backend,
+      multiplex: this.multiplex,
     });
 
     await this.connection.init(true);
@@ -63,8 +68,12 @@ class RmPoolConnection {
 
   async query(sql: string, opts: QueryOptions = {}): Promise<RmQueryResult<any>> {
     this.rmLogger.debug(`Executing query on connection ${this.poolIndex}`);
-    const result = await this.connection.execute(sql, opts);
-    return result;
+    this.inFlight += 1;
+    try {
+      return await this.connection.execute(sql, opts);
+    } finally {
+      this.inFlight -= 1;
+    }
   }
 
   async detach(): Promise<RmPoolConnection> {
@@ -118,6 +127,8 @@ class RmPoolConnection {
       status: this.connection?.getStatus(),
       hasExpiryTimer: this.expiryTimerId !== null,
       expiry: this.expiry,
+      multiplex: this.multiplex,
+      inFlight: this.inFlight,
     };
   }
 

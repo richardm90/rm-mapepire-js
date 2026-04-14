@@ -1,13 +1,13 @@
 # rm-connector-js
 
-An IBM i DB2 connector for Node.js, supporting both remote (mapepire/WebSocket) and native (idb-pconnector/ODBC) backends with connection pooling and management.
+An IBM i DB2 connector for Node.js, supporting both remote (mapepire/WebSocket) and native (idb-pconnector/DB2 CLI) backends with connection pooling and management.
 
 ## Why rm-connector-js?
 
 **rm-connector-js** provides a production-ready DB2 connection layer for IBM i with two interchangeable backends:
 
 - **mapepire** — Remote connections via WebSocket using `@ibm/mapepire-js`. Works from any platform.
-- **idb-pconnector** — Native ODBC connections using `idb-pconnector`. Runs directly on IBM i with no WebSocket overhead.
+- **idb-pconnector** — Native DB2 CLI (Call Level Interface) connections via `idb-pconnector`, a Promise wrapper around the `idb-connector` N-API addon that links directly against Db2 for i on-box. Runs directly on IBM i with no WebSocket overhead and no driver-manager layer.
 
 Both backends share the same API, so your application code works unchanged regardless of where it runs.
 
@@ -20,6 +20,8 @@ On top of the backend abstraction, the library delivers:
 - **Health Checks with Transparent Retry** — Connections are validated before being handed out (`VALUES 1` probe). Unhealthy connections are silently retired and replaced, so your application code never sees a stale connection.
 
 - **Thread-Safe Attach** — A promise-chain mutex serializes connection checkout, preventing race conditions when multiple callers request connections simultaneously.
+
+- **Optional Multiplex Mode** — For mapepire workloads with concurrent queries, opt into `multiplex: true` and each pool connection will serve unlimited in-flight queries over mapepire's native ID-correlated WebSocket protocol, round-robin dispatched across pool members. Measured: up to 29x faster than the serialized default for concurrent bursts over a network, and 2.6x-5.4x faster than the native mapepire Pool on loopback. See [docs/PERFORMANCE-COMPARISON.md](docs/PERFORMANCE-COMPARISON.md#opt-in-multiplex-mode-mapepire-only) for when to enable it.
 
 - **Multi-Pool Management** — Run up to 8 isolated pools (e.g., production, reporting, batch) under a single `RmPools` manager with independent configuration, credentials, and lifecycle.
 
@@ -44,16 +46,6 @@ npm install rm-connector-js
 - **Remote connections (mapepire):** Requires a Mapepire server running on your IBM i. See [@ibm/mapepire-js](https://www.npmjs.com/package/@ibm/mapepire-js) for details.
 - **Native connections (idb):** Requires running on IBM i with `idb-pconnector` available (included as an optional dependency).
 
-### Install from GitHub (alternative)
-
-```bash
-# Latest stable release
-npm install github:richardm90/rm-connector-js#main
-
-# Development branch
-npm install github:richardm90/rm-connector-js#dev
-```
-
 ## Backend Selection
 
 The `backend` option controls which driver is used:
@@ -62,7 +54,7 @@ The `backend` option controls which driver is used:
 |-------|-----------|
 | `'auto'` (default) | Uses `idb` on IBM i (`process.platform === 'os400'`), `mapepire` elsewhere |
 | `'mapepire'` | Always use mapepire (remote WebSocket) |
-| `'idb'` | Always use idb-pconnector (native IBM i ODBC) |
+| `'idb'` | Always use idb-pconnector (native IBM i DB2 CLI) |
 
 Both backends produce identical query data. For a detailed comparison of result envelope differences, error message formats, and feature support, see [BACKEND-DIFFERENCES.md](docs/BACKEND-DIFFERENCES.md).
 
@@ -197,6 +189,13 @@ await conn.close();
 
 ### Configuration Options
 
+#### Pools Options
+
+- `activate`: Auto-activate pools on registration (default: true)
+- `logLevel`: Log level threshold: `'error'` | `'info'` | `'debug'` | `'none'` (default: `'info'`). Use `'error'` to suppress informational messages, `'debug'` for verbose output, or `'none'` to suppress all logging.
+- `pools`: Array of pool configurations
+- `logger`: Custom logger object implementing the `Logger` interface. Flows down to all pools and connections. Defaults to a built-in console logger.
+
 #### Pool Options
 
 - `backend`: Backend driver: `'auto'` | `'mapepire'` | `'idb'` (default: `'auto'`)
@@ -209,19 +208,37 @@ await conn.close();
   - `size`: Number of connections to add when pool is exhausted (default: 8)
   - `expiry`: Expiry time for new connections in minutes (same rules as above)
 - `logLevel`: Log level threshold for this pool: `'error'` | `'info'` | `'debug'` | `'none'` (overrides the global `logLevel` from Pools Options)
-- `JDBCOptions`: JDBC options object. For mapepire backend, this is a standard Mapepire JDBCOptions object. For idb backend, `libraries`, `naming`, `transaction isolation`, and `auto commit` are supported (mapped to native ODBC calls). See [BACKEND-DIFFERENCES.md](docs/BACKEND-DIFFERENCES.md) for details.
+- `JDBCOptions`: JDBC options object. For mapepire backend, this is a standard Mapepire JDBCOptions object. For idb backend, `libraries`, `naming`, `transaction isolation`, and `auto commit` are supported (mapped to native DB2 CLI calls — `SQLSetConnectAttr`, `setLibraryList()`, etc.). See [BACKEND-DIFFERENCES.md](docs/BACKEND-DIFFERENCES.md) for details.
 - `initCommands`: Array of commands to execute when each connection is initialized. Each entry is an object with `command` (string) and optional `type` (`'cl'` or `'sql'`, defaults to `'cl'`). CL commands are executed via `QCMDEXC` with parameterised input; SQL commands are executed directly without parameterisation. **Security note:** SQL-type init commands must be trusted, developer-supplied strings — never pass unsanitised user input as an init command.
 - `healthCheck`: Health check settings
   - `onAttach`: Verify connections are alive before returning from `attach()` by executing a lightweight query (`VALUES 1`). Unhealthy connections are automatically retired and replaced. (default: `true`). Set to `false` to disable.
   - `keepalive`: Interval in minutes to send keepalive pings (`VALUES 1`) on idle connections, preventing WebSocket connections from being dropped by firewalls or network intermediaries. The timer resets whenever a real query is executed. If a keepalive ping fails, the timer stops and the connection will be retired on the next `attach()` health check. (default: `null` = disabled). Recommended: `5` for most environments. Note: automatically disabled for the idb backend (no WebSocket to keep alive).
+- `multiplex`: Enable shared-connection multiplex mode (default: `false`, **mapepire backend only**). When `true`, each pool connection accepts unlimited concurrent in-flight queries via mapepire-js's native ID-correlated WebSocket protocol and the pool dispatches round-robin across its members. `attach()` no longer claims exclusive ownership; `detach()` becomes a no-op; per-attach health checks are skipped (use `healthCheck.keepalive` instead for periodic background checks). Rejected with an error if combined with `backend: 'idb'`. Best for concurrent/burst workloads against a remote IBM i — leave off for purely sequential traffic. See [Pool sizing under multiplex](#pool-sizing-under-multiplex) below for how the other pool options change behaviour, and [docs/PERFORMANCE-COMPARISON.md](docs/PERFORMANCE-COMPARISON.md#opt-in-multiplex-mode-mapepire-only) for measurements.
 - `logger`: Custom logger object (per-pool override, see Logger below)
 
-#### Pools Options
+#### Pool sizing under multiplex
 
-- `activate`: Auto-activate pools on registration (default: true)
-- `logLevel`: Log level threshold: `'error'` | `'info'` | `'debug'` | `'none'` (default: `'info'`). Use `'error'` to suppress informational messages, `'debug'` for verbose output, or `'none'` to suppress all logging.
-- `pools`: Array of pool configurations
-- `logger`: Custom logger object implementing the `Logger` interface. Flows down to all pools and connections. Defaults to a built-in console logger.
+When `multiplex: true` is set, several of the pool options above behave differently from the default serialized mode. The pool is **fixed-size** — there is no auto-growth — and concurrency is handled by fanning multiple queries through the same connections rather than by opening more. This is a significant departure from the serialized behaviour, so read carefully before setting `multiplex: true` on an existing pool config.
+
+| Option | Behaviour under `multiplex: true` |
+|---|---|
+| `initialConnections.size` | **This is your pool size.** The number of WebSocket/`SQLJob` connections created at `RmPool.init()` time is the number that stays throughout the pool's lifetime. Set it to the number of parallel Mapepire connections (and therefore QZDASOINIT jobs on the IBM i side) you want serving the workload. |
+| `maxSize` | **Used only as a safety cap on initial creation**, via `Math.min(initialConnections.size, maxSize)`. After `init()`, the multiplex attach path never looks at `maxSize` again — it is **not** an elastic ceiling under load. Think of it as "don't let a bad config accidentally create hundreds of initial connections" rather than as a growth limit. |
+| `incrementConnections.size` / `.expiry` | **Ignored.** These options drive on-demand pool growth in serialized mode (add more connections when all existing ones are busy). Multiplex mode has no concept of "all connections are busy" because every connection is always shared, so there is nothing to trigger growth. You can leave these at their defaults — they will have no effect. |
+| `initialConnections.expiry` | **Rarely useful in multiplex.** The option is still honoured as max-age-from-creation (if the timer fires while `inFlight > 0`, retirement is deferred until in-flight queries finish, and a replacement is auto-created so subsequent attaches still find a connection). But the original purpose of `expiry` was retiring *idle overflow connections* created by `incrementConnections` during spikes — since multiplex has no overflow and no idle/busy distinction, `expiry` has almost nothing to do here. The one narrow use is periodic WebSocket hygiene (force a reconnect every N minutes to dodge long-running Java sessions or NAT/proxy timeouts). For most workloads, set `expiry: null` in multiplex mode. |
+| `healthCheck.onAttach` | **Skipped.** Running a `VALUES 1` probe on every `pool.query()` call would defeat the throughput benefit of multiplexing. |
+| `healthCheck.keepalive` | **Still active**, and is the recommended replacement for per-attach health checks — it runs a periodic background probe on each connection regardless of mode. |
+
+**Where the in-flight queue lives.** Multiplex does not eliminate queuing — it moves most of it off the client and onto the IBM i, and overlaps client-side serialization with server-side execution. When you fire 500 concurrent queries at a pool of 5 connections (100 in flight per connection), those queries span several buffers:
+
+1. **mapepire-js `globalQueryList`** (client, Node.js) — every `SQLJob.execute()` creates a `Query` object with a unique correlation ID and pushes it into `Query.globalQueryList`, which is how responses are routed back to the right caller. Objects stay until the response arrives.
+2. **WebSocket send buffer** (client, Node.js) — the `ws` library buffers serialized JSON frames in user space, then in the kernel TCP socket send buffer. Fast pipelining + slow TCP drain = requests briefly queueing here.
+3. **Wire** — whatever TCP segments are in flight.
+4. **WebSocket receive buffer** (Mapepire Java server on IBM i) — incoming JSON frames the server has not yet parsed.
+5. **Mapepire Java session queue** (Mapepire Java server on IBM i) — each WebSocket session is handled by a Java thread running a message loop: pull a message, execute it via JDBC, send the response. Messages beyond the currently-executing one wait in this queue.
+6. **JDBC → QZDASOINIT → Db2** (IBM i) — the Java session hands each query to JDBC/JTOpen, which talks to the QZDASOINIT prestart job backing that mapepire session. QZDASOINIT processes queries sequentially per connection — this is the real throughput bottleneck.
+
+The bulk of deep queuing lives **server-side in steps 4-6**, not in your Node.js process. Client-side (steps 1-2) is cheap — a list of small objects and some JSON bytes. Multiplex wins on latency because steps 1, 3, and 6 run in parallel: while query N is executing on the server, query N+1 is already on the wire and query N+2 is being serialized in Node. That pipeline overlap is the whole reason multiplex is faster than the serialized default, especially over a network where round-trip time is large.
 
 #### Logger
 
@@ -389,6 +406,7 @@ const conn = new RmConnection({
   logLevel: 'info',           // Log level
   logger: myLogger,           // Custom logger
   keepalive: 5,               // Keepalive interval in minutes (mapepire only)
+  multiplex: false,           // Allow concurrent in-flight queries on this connection (mapepire only)
 });
 ```
 
@@ -478,37 +496,4 @@ npm publish
 git checkout dev
 git merge main
 git push origin dev
-```
-
-## Use `npm link` for Active Development
-
-If you're making frequent changes, npm link is faster:
-
-```bash
-# In your rm-connector-js directory
-npm link
-
-# In your consuming project
-npm link rm-connector-js
-```
-
-Now any changes you make and build in `rm-connector-js` are immediately
-available.
-
-When done:
-
-```bash
-# 1. In your consuming project - removes the symlink
-npm unlink rm-connector-js
-
-# 2. In your rm-connector-js directory - removes the global link
-npm unlink
-
-# 3. In your consuming project - reinstall normally
-npm install rm-connector-js
-```
-
-```bash
-# Check if something is linked, in the consuming project
-ls -l node_modules/ | grep "^l"
 ```

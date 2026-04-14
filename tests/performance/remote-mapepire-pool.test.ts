@@ -81,13 +81,18 @@ function formatMs(ms: number): string {
   return ms.toFixed(2) + 'ms';
 }
 
+// Bypass Jest's console.log decoration by writing directly to stdout.
+const println = (s: string = ''): void => {
+  process.stdout.write(s + '\n');
+};
+
 function printComparison(label: string, rmStats: Stats, nativeStats: Stats): void {
-  console.log('');
-  console.log(`  ┌─────────────────────────────────────────────────────────────────┐`);
-  console.log(`  │ ${label.padEnd(63)} │`);
-  console.log(`  ├──────────────────┬──────────────────┬──────────────────┬────────┤`);
-  console.log(`  │ Metric           │ rm-connector-js  │ native mapepire  │ Ratio  │`);
-  console.log(`  ├──────────────────┼──────────────────┼──────────────────┼────────┤`);
+  println('');
+  println(`  ┌─────────────────────────────────────────────────────────────────┐`);
+  println(`  │ ${label.padEnd(63)} │`);
+  println(`  ├──────────────────┬──────────────────┬──────────────────┬────────┤`);
+  println(`  │ Metric           │ rm-connector-js  │ native mapepire  │ Ratio  │`);
+  println(`  ├──────────────────┼──────────────────┼──────────────────┼────────┤`);
 
   const rows: [string, number, number][] = [
     ['Min', rmStats.min, nativeStats.min],
@@ -101,13 +106,13 @@ function printComparison(label: string, rmStats: Stats, nativeStats: Stats): voi
   for (const [metric, rm, native] of rows) {
     const r = rm / native;
     const ratioStr = r > 1 ? `${r.toFixed(1)}x` : `${(1 / r).toFixed(1)}x`;
-    console.log(
+    println(
       `  │ ${metric.padEnd(16)} │ ${formatMs(rm).padStart(16)} │ ${formatMs(native).padStart(16)} │ ${ratioStr.padStart(6)} │`,
     );
   }
 
-  console.log(`  └──────────────────┴──────────────────┴──────────────────┴────────┘`);
-  console.log(`  Queries: ${rmStats.count}, Warm-up: ${WARMUP_COUNT}, Pool size: ${POOL_SIZE}`);
+  println(`  └──────────────────┴──────────────────┴──────────────────┴────────┘`);
+  println(`  Queries: ${rmStats.count}, Warm-up: ${WARMUP_COUNT}, Pool size: ${POOL_SIZE}`);
 }
 
 // ---------------------------------------------------------------------------

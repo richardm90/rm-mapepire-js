@@ -5,36 +5,58 @@ This directory contains the test suite for rm-connector-js.
 ## Running Tests
 
 ```bash
-# Run all tests
+# Unit tests (hermetic, mocked — no IBM i needed)
 npm test
 
-# Run tests in watch mode
+# Unit tests in watch mode
 npm run test:watch
 
-# Run tests with coverage
+# Unit tests with coverage
 npm run test:coverage
+
+# Performance benchmarks (requires a real IBM i; see below)
+IBMI_HOST=myibmi.com IBMI_USER=MYUSER IBMI_PASSWORD=MYPASS npm run test:performance
+
+# Backend parity suite (requires a real IBM i)
+IBMI_HOST=myibmi.com IBMI_USER=MYUSER IBMI_PASSWORD=MYPASS npm run test:parity
 ```
+
+The default `npm test` only runs the hermetic unit suites in this directory. `tests/performance/` and `tests/parity/` are excluded from the default run via `testPathIgnorePatterns` in `jest.config.js` — they use separate Jest configs (`jest.perf.config.js` and `jest.parity.config.js`) that deliberately bypass the manual mocks in `tests/__mocks__/` so they can talk to real `@ibm/mapepire-js` and `idb-pconnector`.
 
 ## Test Structure
 
-- `setup.ts` - Test setup and mocks for external dependencies
-- `rmPoolConnection.test.ts` - Unit tests for connection management
-- `rmPool.test.ts` - Unit tests for pool management
-- `rmPools.test.ts` - Unit tests for multi-pool management
-- `integration.test.ts` - Integration tests for full workflows
+### Unit tests (this directory)
 
-## Test Coverage Goals
+Hermetic, fully mocked — run via `npm test` on any platform.
 
-- Aim for >80% code coverage
-- All public methods should have unit tests
-- Integration tests should cover common workflows
-- Error cases should be tested
+- `setup.ts` — Jest setup and global test configuration
+- `__mocks__/` — Manual mocks for `@ibm/mapepire-js` and `idb-pconnector`
+- `rmConnection.test.ts` — Unit tests for the standalone `RmConnection` class
+- `rmPoolConnection.test.ts` — Unit tests for pool-member connection lifecycle
+- `rmPool.test.ts` — Unit tests for the pool (attach, detach, retire, expiry, health check)
+- `rmPools.test.ts` — Unit tests for multi-pool management
+- `multiplex.test.ts` — Unit tests for opt-in `multiplex: true` behaviour (round-robin dispatch, no-op detach, N-concurrent-queries-on-pool-of-1, idb rejection)
+- `idbBackend.test.ts` — Unit tests for the idb backend's `applyJDBCOptions` mapping
+- `integration.test.ts` — End-to-end workflow tests through the mocked stack
+- `logLevel.test.ts` — Unit tests for the `RmLogger` log-level filter
+- `debug.test.ts` — Unit tests for debug-level logging behaviour
+
+### Performance benchmarks (`tests/performance/`)
+
+Require a real IBM i. Run via `npm run test:performance`.
+
+- `backend-performance.test.ts` — idb vs mapepire benchmark matrix (connection creation, sequential/Promise.all, pool, parameterized queries, large result sets)
+- `native-mapepire-pool.test.ts` — idb-RmPool vs native `@ibm/mapepire-js` Pool
+- `remote-mapepire-pool.test.ts` — rm-connector-js serialized pool vs native mapepire pool from a remote workstation
+- `remote-mapepire-multiplex.test.ts` — three-way comparison: rm-connector-js serialized vs `multiplex: true` vs native mapepire pool
+- `pool-contention-proof.test.ts` — proves the health-check gate rate-limits concurrent `attach()` calls
+
+### Backend parity (`tests/parity/`)
+
+Require a real IBM i. Run via `npm run test:parity`. These run the same operations through both backends and compare the results to ensure semantic equivalence.
 
 ## Mocking Strategy
 
-The tests mock `@ibm/mapepire-js` since we don't have an actual IBM i database connection during testing. This allows us to test the pool management logic without requiring a real database.
+The unit suite mocks `@ibm/mapepire-js` (`tests/__mocks__/@ibm/mapepire-js.ts`) and `idb-pconnector` (`tests/__mocks__/idb-pconnector.ts`) so tests can exercise pool and connection logic without a real database. Because `jest.config.js` sets `moduleDirectories: ['node_modules', '<rootDir>/tests/__mocks__']`, these mocks are resolved automatically for every test in this directory.
 
-For true integration testing with a real IBM i system, you would need to:
-1. Set up a test IBM i environment
-2. Create separate integration tests that skip the mocks
-3. Use environment variables to configure real credentials
+For performance and parity tests where that would be counterproductive, the dedicated Jest configs set `roots: ['<rootDir>/tests/performance']` (or `tests/parity`) so the mock directory is not on the module resolution path, and the real packages load instead.

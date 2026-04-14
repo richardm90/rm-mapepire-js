@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Opt-in `multiplex: true` flag on `PoolOptions` and `RmConnectionOptions` (mapepire backend only). When enabled, each `RmPoolConnection` is shared: multiple callers can hold it simultaneously and concurrent `pool.query()` calls map directly to mapepire-js's parallel `job.execute()` calls on the same `SQLJob`. `RmPool` uses round-robin dispatch across pool members instead of exclusive attach; `detach()` becomes a no-op; per-attach health checks are skipped (use `healthCheck.keepalive` for periodic background checks instead). `connection.expiry` still applies as max age from creation — retirement is deferred if `inFlight > 0` and the pool auto-creates a replacement.
+- `RmPoolConnection` now exposes an `inFlight` counter and `multiplex` flag in `getInfo()` for visibility when `available`/`busy` no longer carry their usual meaning.
+- Rejects `multiplex: true` combined with the idb backend at construction/init with a clear error — idb is shared-memory IPC and cannot multiplex.
+- `tests/multiplex.test.ts` — 7 unit tests covering idb rejection, round-robin behaviour, no-op detach, N-concurrent-queries-on-pool-of-1 sharing one job, and `inFlight` visibility.
+- `tests/performance/remote-mapepire-multiplex.test.ts` — three-way benchmark comparing rm-connector-js serialized, rm-connector-js multiplex, and the native mapepire Pool. Prints a comparison table with "multiplex recovers Nx over serialized" summary for remote and loopback use.
+- `examples/multiplex.js` — runnable example demonstrating a 50-query `Promise.all` burst through a pool of 5 connections in multiplex mode, with inline comments explaining the fixed-size-pool semantics. Includes a secondary `idbRejectionExample()` showing the init-time rejection when combining `multiplex: true` with `backend: 'idb'`.
+
+### Changed
+
+- `docs/PERFORMANCE-COMPARISON.md` refreshed with three-way loopback and remote benchmark data across 50/100/200/400/1000/2000-query scales. The "multiplexing hurts on loopback" claim has been revised: native mapepire's `Pool.getJob()` biases dispatch toward the first ready job, which is the real cause of its loopback underperformance — round-robin multiplexing (as in `multiplex: true`) is 2.2x-7.8x faster than serialized rm-connector-js and 2.6x-5.4x faster than native mapepire across every scale tested on loopback. Remote: 21x faster than serialized at 50 concurrent queries, 29x at 100, matching or slightly beating the native pool. The `idb-connector` vs `idb-pconnector` package name is now consistently correct throughout — 22 prior references to `idb-connector` corrected to `idb-pconnector` (the npm package rm-connector-js actually imports), and the Architecture Overview now explicitly explains that `idb-pconnector` is a Promise wrapper around the `idb-connector` N-API addon and clarifies which of the two is doing the real work.
+- `README.md` updated with a new "Optional Multiplex Mode" feature bullet, a new `multiplex` entry in the Pool Options list, a `multiplex: false` line in the `RmConnection` constructor example, and a new "Pool sizing under multiplex" subsection explaining how the fixed-size pool behaves (`initialConnections.size` is the pool size, `maxSize` is only a safety cap on initial creation, `incrementConnections` is ignored, `expiry` is rarely useful, `healthCheck.onAttach` is skipped). The subsection also includes a 6-step in-flight queue diagram showing where queries live as they traverse the mapepire-js `globalQueryList`, WebSocket send buffer, wire, server receive buffer, Mapepire Java session queue, and JDBC → QZDASOINIT → Db2.
+- `tests/README.md` refreshed. Previously listed 4 test files when the directory now has 14 (9 unit + 5 performance + the parity suite). Now documents the three separate test runs (`npm test` / `test:performance` / `test:parity`), explains why `tests/performance/` and `tests/parity/` are excluded from the default run, and describes the module-resolution trick (`moduleDirectories` vs `roots`) that keeps the manual mocks in `tests/__mocks__/` active for unit tests but transparent for perf/parity suites.
+- `jest.perf.config.js` testMatch now includes `remote-mapepire-multiplex.test.ts`.
+- Performance test print helpers write directly to `process.stdout` (via a small `println` helper) instead of `console.log`, so Jest's source-location decoration no longer interleaves with the comparison tables.
+- **Terminology correction: "ODBC" → "DB2 CLI" throughout the project.** The idb backend was previously described as using ODBC in README, BACKEND-DIFFERENCES, PERFORMANCE-COMPARISON, code comments, and two historical CHANGELOG entries (1.0.2 and 1.0.0). In reality, `idb-connector` is a native N-API addon that links directly against IBM i's Db2 SQL Call Level Interface (the `QSQCLI` service program on-box), not an ODBC driver — the two share the X/Open CLI function namespace (`SQLConnect`, `SQLPrepare`, `SQLExecute`, etc.) which is the source of the historical confusion, but DB2 CLI is a native in-process API with no driver manager, while ODBC on IBM i is a separate IBM i Access driver typically used over the network from off-box clients. Liam's benchmark references (which genuinely did use the IBM i Access ODBC driver from a Mac) are preserved as "ODBC" where appropriate.
+
+### Fixed
+
+- `jest.config.js` now excludes `/tests/performance/` via `testPathIgnorePatterns` so `npm run test` no longer tries to run performance suites. Previously, with credentials set, Jest would pick up the perf files under the default config and hit the manual `@ibm/mapepire-js` mock (which has no `Pool.init()`), causing `TypeError: mapPool.init is not a function`. Performance suites must now go through `npm run test:performance`, which uses `jest.perf.config.js` and loads the real modules.
+
 ## [1.0.2] - 2026-04-02
 
 ### Added
@@ -15,7 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Test for per-pool logger override
 - IDB backend: `transaction isolation` JDBCOption mapped to `setConnAttr(SQL_ATTR_COMMIT)` — supports `none`, `read uncommitted`, `read committed`, `repeatable read`, `serializable`
 - IDB backend: `auto commit` JDBCOption mapped to `setConnAttr(SQL_ATTR_AUTOCOMMIT)`
-- IDB backend: `setLibraryList()` replaces `SET PATH` SQL for setting library list (native ODBC call)
+- IDB backend: `setLibraryList()` replaces `SET PATH` SQL for setting library list (native DB2 CLI call)
 - IDB backend unit tests covering all `applyJDBCOptions` mappings
 - `idb-pconnector` test mock — enables test suite to pass on IBM i
 - Tests now explicitly set `backend: 'mapepire'` to prevent idb backend being selected on IBM i
@@ -48,7 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Dual-backend support**: `mapepire` (remote, WebSocket) and `idb-pconnector` (native IBM i, ODBC)
+- **Dual-backend support**: `mapepire` (remote, WebSocket) and `idb-pconnector` (native IBM i, DB2 CLI)
 - `BackendConnection` interface (`src/backends/types.ts`) for pluggable backends
 - `MapepireBackend` (`src/backends/mapepire.ts`) — wraps `@ibm/mapepire-js` SQLJob
 - `IdbBackend` (`src/backends/idb.ts`) — wraps `idb-pconnector`, dynamically loaded
