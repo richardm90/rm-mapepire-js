@@ -48,7 +48,7 @@ const SAMPLE_SCHEMA = process.env.SAMPLE_SCHEMA || 'SAMPLE';
 const SQL_STANDARD = `SELECT * FROM ${SAMPLE_SCHEMA}.DEPARTMENT`;
 
 /** SQL statement for large result set benchmarks */
-const SQL_LARGE = 'SELECT * FROM QIWS.QCUSTCDT CROSS JOIN (VALUES 1,2,3,4,5,6,7,8,9,10) AS T(N)';
+const SQL_LARGE = `SELECT * FROM ${SAMPLE_SCHEMA}.EMPLOYEE CROSS JOIN (VALUES 1,2,3,4,5,6,7,8,9,10) AS T(N)`;
 
 // ---------------------------------------------------------------------------
 // Types

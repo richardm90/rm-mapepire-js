@@ -117,7 +117,7 @@ The following benchmarks were run on IBM i with both backends operating on the s
 - **Runs per scenario**: 3 (values below are averaged medians across 3 runs)
 - **Pool size**: 5 connections
 - **Standard query**: `SELECT * FROM SAMPLE.DEPARTMENT`
-- **Large result set query**: `SELECT * FROM QIWS.QCUSTCDT CROSS JOIN (VALUES 1,2,3,4,5,6,7,8,9,10) AS T(N)`
+- **Large result set query**: `SELECT * FROM SAMPLE.EMPLOYEE CROSS JOIN (VALUES 1,2,3,4,5,6,7,8,9,10) AS T(N)`
 
 ### Results
 
@@ -125,13 +125,13 @@ All values are median query times in milliseconds, averaged across 3 independent
 
 | Scenario | 50q idb | 50q mapepire | 200q idb | 200q mapepire | 1000q idb | 1000q mapepire | Stable Ratio |
 |---|---|---|---|---|---|---|---|
-| Connection creation | 7.13ms | 28.07ms | 7.16ms | 27.28ms | 6.91ms | 29.00ms | **idb ~4x faster** |
-| Single sequential | 0.55ms | 1.44ms | 0.54ms | 1.28ms | 0.49ms | 0.99ms | **idb ~2x faster** |
-| Single sequential (large) | 5.03ms | 4.80ms | 4.96ms | 4.36ms | 4.91ms | 4.37ms | **mapepire ~1.1x faster** |
-| Single Promise.all | 20.76ms | 24.02ms | 54.35ms | 74.74ms | 265.30ms | 421.14ms | **idb ~1.5x faster** |
-| Pool sequential | 0.70ms | 2.46ms | 0.68ms | 2.00ms | 0.66ms | 1.63ms | **idb ~2.5x faster** |
-| Pool Promise.all | 15.76ms | 47.42ms | 49.76ms | 131.40ms | 227.65ms | 594.86ms | **idb ~2.6x faster** |
-| Parameterized sequential | 0.38ms | 1.39ms | 0.38ms | 1.08ms | 0.40ms | 1.22ms | **idb ~3x faster** |
+| Connection creation | 9.17ms | 30.80ms | 9.93ms | 30.90ms | 10.37ms | 36.93ms | **idb ~3.5x faster** |
+| Single sequential | 0.68ms | 1.75ms | 0.94ms | 1.69ms | 0.91ms | 1.81ms | **idb ~2x faster** |
+| Single sequential (large) | 23.47ms | 15.65ms | 17.70ms | 12.02ms | 17.73ms | 11.44ms | **mapepire ~1.5x faster** |
+| Single Promise.all | 20.85ms | 22.06ms | 58.65ms | 75.02ms | 246.63ms | 422.98ms | **idb ~1.5x faster** |
+| Pool sequential | 0.75ms | 2.08ms | 0.71ms | 1.85ms | 0.65ms | 1.69ms | **idb ~2.5x faster** |
+| Pool Promise.all | 15.91ms | 51.61ms | 48.99ms | 135.44ms | 222.63ms | 600.29ms | **idb ~2.7x faster** |
+| Parameterized sequential | 0.37ms | 1.21ms | 0.40ms | 1.20ms | 0.36ms | 1.10ms | **idb ~3x faster** |
 
 **Notes:**
 - Sequential means the queries run in serial (one query at a time, `await` in a `for` loop).
@@ -144,8 +144,8 @@ The wall clock measures how long it takes to process the entire batch of queries
 
 | Scenario | 50q idb | 50q mapepire | 200q idb | 200q mapepire | 1000q idb | 1000q mapepire | Stable Ratio |
 |---|---|---|---|---|---|---|---|
-| Single Promise.all | 32.97ms | 32.71ms | 104.20ms | 118.17ms | 549.31ms | 617.56ms | **idb ~1.1x faster** |
-| Pool Promise.all | 26.15ms | 85.58ms | 93.51ms | 253.61ms | 448.51ms | 1189.46ms | **idb ~2.7x faster** |
+| Single Promise.all | 33.43ms | 28.70ms | 112.47ms | 110.58ms | 517.71ms | 600.67ms | **idb ~1.1x faster** |
+| Pool Promise.all | 26.39ms | 108.20ms | 99.20ms | 263.19ms | 436.46ms | 1198.31ms | **idb ~2.7x faster** |
 
 The pool Promise.all wall clock is the best throughput metric: it shows how quickly each backend can push N queries through 5 connections under maximum contention. At 1000 queries, idb completes the batch in under half a second while mapepire takes over a second.
 
@@ -154,10 +154,10 @@ The pool Promise.all wall clock is the best throughput metric: it shows how quic
 - **idb-connector is consistently 2-3x faster for typical sequential workloads.** The pool sequential scenario (grab a connection, run a query, release) is closest to a typical production workload and shows a stable 2.5x advantage from idb-connector's zero-network-overhead architecture.
 - **Results are highly reproducible.** Across 3 independent runs at each query count, idb medians barely moved (e.g., pool sequential: 0.66-0.70ms across all runs). Mapepire was equally stable for sequential workloads.
 - **Parameterized queries show a similar ~3x advantage**, confirming the overhead is in the protocol layer, not the query type.
-- **Large result sets consistently favour Mapepire by ~1.1x.** When DB2 execution and data transfer time dominates, the protocol overhead becomes negligible. Mapepire's server-side processing edges ahead by a small margin, confirming that the idb-connector advantage is most visible for lightweight, frequent queries.
+- **Large result sets consistently favour Mapepire by ~1.5x.** When DB2 execution and data transfer time dominates, the protocol overhead becomes negligible and Mapepire's server-side processing pulls ahead. This confirms the idb-connector advantage is most visible for lightweight, frequent queries — once each query returns a substantial payload, Mapepire's JDBC/JTOpen path handles it more efficiently than idb's CLI result buffering.
 - **Single connection Promise.all** is the scenario where Mapepire's async WebSocket model should theoretically excel (as seen in Liam's remote benchmarks), yet idb still wins by ~1.5x. Running locally eliminates the network latency that gave Mapepire its advantage in remote scenarios.
 - **Connection creation** shows a stable ~4x advantage on median, though the first idb connection consistently hits ~145-165ms (vs a ~6ms minimum), likely due to cold-start activation of the first QSQSRVR prestart job.
-- **Mapepire shows larger outliers under sustained load.** At 1000 queries, mapepire's max times grow disproportionately (e.g., parameterized query max: 73ms in one run vs idb's 5.67ms), suggesting occasional GC (Garbage Collection) pauses or WebSocket congestion in the Java server.
+- **Mapepire shows larger outliers under sustained load.** At 1000 queries, mapepire's single-sequential max hit ~173ms in one run versus idb's ~36ms, suggesting occasional GC (Garbage Collection) pauses or WebSocket congestion in the Java server.
 
 ### Native Mapepire Pool vs idb (Multiplexing Test)
 
@@ -167,11 +167,11 @@ To determine whether Mapepire's multiplexing could compensate for its higher per
 
 | Scenario | idb Wall Clock | Mapepire (native) Wall Clock | Ratio |
 |---|---|---|---|
-| Sequential (50q) | 46ms | 59ms | **idb 1.3x faster** |
-| Promise.all (50q) | 30ms | 240ms | **idb 8.0x faster** |
-| High concurrency (100q) | 50ms | 235ms | **idb 4.7x faster** |
+| Sequential (50q) | 66ms | 119ms | **idb 1.8x faster** |
+| Promise.all (50q) | 36ms | 233ms | **idb 6.5x faster** |
+| High concurrency (100q) | 68ms | 242ms | **idb 3.6x faster** |
 
-**Multiplexing does not help on local IBM i — it makes things worse.** Even with all 50 queries in-flight simultaneously across 5 WebSocket connections, native Mapepire took 240ms vs idb's 30ms.
+**Multiplexing does not help on local IBM i — it makes things worse.** Even with all 50 queries in-flight simultaneously across 5 WebSocket connections, native Mapepire took 233ms vs idb's 36ms.
 
 This is because multiplexing's benefit is hiding **network latency** behind concurrent requests (as demonstrated in Liam's remote benchmarks from a Mac). On local loopback:
 
@@ -191,8 +191,8 @@ It is also worth comparing Mapepire's native pool against Mapepire accessed thro
 | Route | Median |
 |---|---|
 | Native mapepire `pool.execute()` | 1.08ms |
-| rm-connector-js single connection `execute()` | 1.44ms |
-| rm-connector-js pool `query()` | 2.46ms |
+| rm-connector-js single connection `execute()` | 1.75ms |
+| rm-connector-js pool `query()` | 2.08ms |
 
 The native pool is fastest because it calls Mapepire directly. The rm-connector-js single connection adds a thin wrapper. The rm-connector-js pool is slowest because each query includes attach, health check, execute, and detach overhead.
 
@@ -200,10 +200,10 @@ The native pool is fastest because it calls Mapepire directly. The rm-connector-
 
 | Route | Wall Clock |
 |---|---|
-| rm-connector-js mapepire pool (serialized) | ~86ms |
+| rm-connector-js mapepire pool (serialized) | ~108ms |
 | Native mapepire pool (multiplexed) | 240ms |
 
-The rm-connector-js serialized approach is **2.8x faster** than native Mapepire's multiplexing for concurrent workloads on IBM i. Queuing queries and sending them one-at-a-time per connection is more efficient than flooding each QZDASOINIT job with 10 concurrent requests.
+The rm-connector-js serialized approach is **~2.2x faster** than native Mapepire's multiplexing for concurrent workloads on IBM i. Queuing queries and sending them one-at-a-time per connection is more efficient than flooding each QZDASOINIT job with 10 concurrent requests.
 
 This means rm-connector-js's one-at-a-time pool model is not just a lowest-common-denominator compromise — it is actually the better strategy for both backends when running locally on IBM i.
 
@@ -268,7 +268,7 @@ The performance benefits of idb-connector over Mapepire when running on IBM i ar
 
 Key findings:
 
-- **On IBM i, idb-connector is 2-3x faster** for typical sequential workloads and up to 8x faster under concurrent load, even when compared against Mapepire's native multiplexing capabilities.
+- **On IBM i, idb-connector is 2-3x faster** for typical sequential workloads and up to ~6x faster under concurrent load, even when compared against Mapepire's native multiplexing capabilities.
 - **Mapepire's multiplexing does not compensate** for its per-query overhead when both connectors run on the same machine. Serialized, one-at-a-time access is actually faster on local loopback because it avoids flooding server jobs with concurrent requests.
 - **Over a real network, multiplexing is transformative** — native Mapepire pools are up to 26x faster than rm-connector-js's serialized pooling for concurrent workloads, because multiplexing hides network latency behind parallel requests.
 - **rm-connector-js's serialized pool model is the right trade-off.** On IBM i (production), it matches the optimal strategy for idb-connector. Off IBM i (development), it leaves Mapepire throughput on the table for concurrent workloads, but this is acceptable since development workflows prioritise convenience over raw performance.
