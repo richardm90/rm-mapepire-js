@@ -13,6 +13,10 @@ This document details the differences between the two backends based on testing 
 
 ## Result Envelope
 
+See [RESULT-ENVELOPES.md](RESULT-ENVELOPES.md) for full JSON examples of
+the envelope returned by each backend for a query covering every major
+SQL data type.
+
 | Property | idb | mapepire |
 |---|---|---|
 | **`id`** | Sequential number (`"3"`, `"5"`, etc.) | Named identifier (`"query7"`, `"query26"`, etc.) |
