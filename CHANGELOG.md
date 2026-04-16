@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Optional `creds` on the idb backend (new `IdbCredentials` interface: `{ user?, password?, database? }`) for profile swap on `*LOCAL` and remote RDB connections via directory entries (`WRKRDBDIRE`). Exported `isDaemonServer` type guard.
+- `backend` field on `RmConnection`/`RmPool`/`RmPoolConnection` `getInfo()` and in `RmPool.debug()` output.
+- Backend selection now logged at `RmPool` construction and `RmPoolConnection` init.
+- `logPrefix` option on `RmConnectionOptions`; `RmPoolConnection` passes `Pool: <id> Connection: <index>`.
+- `examples/backend-connections.js` and `examples/pool-diagnostics.js`.
+
+### Changed
+
+- Log messages: `Connected (mapepire-js)` → `Connected (mapepire)`, `Connected (idb-pconnector)` → `Connected (idb)`.
+- Clearer mapepire error when `creds` is missing or has the idb shape.
+- `RmConnection.backend` is overwritten with the resolved value at init (`'auto'` → `'mapepire'`/`'idb'`).
+- `RmPool` no longer synthesizes placeholder empty-string creds when `PoolOptions`/`creds` are omitted.
+
 ## [1.0.4] - 2026-04-16
 
 ### Added
