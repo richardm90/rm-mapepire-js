@@ -44,13 +44,13 @@ class RmConnection {
   }
 
   async init(suppressConnectionMessage: boolean = false): Promise<void> {
-    const resolved = this.resolveBackend();
+    this.backend = this.resolveBackend();
 
-    if (this.multiplex && resolved === 'idb') {
+    if (this.multiplex && this.backend === 'idb') {
       throw new Error('RmConnection: multiplex mode is not supported with the idb backend (idb is single-threaded shared-memory IPC; use the mapepire backend for multiplexing)');
     }
 
-    if (resolved === 'idb') {
+    if (this.backend === 'idb') {
       const { IdbBackend } = require('./backends/idb');
       this.backendImpl = new IdbBackend(this.JDBCOptions, this.initCommands, this.rmLogger);
       // Auto-disable keepalive for idb (no WebSocket to keep alive)
@@ -124,6 +124,7 @@ class RmConnection {
   getInfo(): object {
     return {
       jobName: this.jobName,
+      backend: this.backend,
       available: this.available,
       status: this.backendImpl?.getStatus(),
     };

@@ -58,7 +58,7 @@ class RmPoolConnection {
 
     this.jobName = this.connection.jobName;
 
-    this.rmLogger.info(`Initialized, job name=${this.jobName}`);
+    this.rmLogger.info(`Initialized (${this.connection.backend}), job name=${this.jobName}`);
 
     // Output connection details in IBM i joblog
     const projectPrefix = process.env.PROJECT_NAME ? `${process.env.PROJECT_NAME}: ` : '';
@@ -123,6 +123,7 @@ class RmPoolConnection {
       poolId: this.poolId,
       poolIndex: this.poolIndex,
       jobName: this.jobName,
+      backend: this.connection?.backend,
       available: this.available,
       status: this.connection?.getStatus(),
       hasExpiryTimer: this.expiryTimerId !== null,

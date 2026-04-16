@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import RmPoolConnection from './rmPoolConnection';
-import { PoolConfig, InitialConnections, IncrementConnections, JDBCOptions, DaemonServer, QueryOptions, Logger, LogLevel, RmQueryResult } from './types';
+import { PoolConfig, InitialConnections, IncrementConnections, JDBCOptions, DaemonServer, QueryOptions, Logger, LogLevel, RmQueryResult, BackendType } from './types';
 import defaultLogger, { RmLogger } from './logger';
 
 class RmPool extends EventEmitter {
@@ -16,6 +16,7 @@ class RmPool extends EventEmitter {
   healthCheckOnAttach: boolean;
   keepaliveInterval: number | null;
   multiplex: boolean;
+  backend: BackendType;
   private nextMultiplexIndex: number;
   logLevel: LogLevel;
   logger: Logger;
@@ -71,6 +72,7 @@ class RmPool extends EventEmitter {
     this.healthCheckOnAttach = opts.healthCheck?.onAttach ?? true;
     this.keepaliveInterval = opts.healthCheck?.keepalive ?? null;
     this.multiplex = opts.multiplex ?? false;
+    this.backend = opts.backend || 'auto';
     this.nextMultiplexIndex = 0;
 
     if (this.multiplex && opts.backend === 'idb') {
@@ -81,6 +83,8 @@ class RmPool extends EventEmitter {
     this.rmLogger = new RmLogger(this.logger, this.logLevel, 'RmPool', `Pool: ${this.id}`);
     this.attachQueue = Promise.resolve();
     this.nextConnectionId = 0;
+
+    this.rmLogger.info(`Backend: ${opts.backend || 'auto'}`);
   }
 
   /**
@@ -415,6 +419,7 @@ class RmPool extends EventEmitter {
   getInfo(): object {
     return {
       id: this.id,
+      backend: this.backend,
       totalConnections: this.connections.length,
       availableConnections: this.connections.filter(c => c.isAvailable()).length,
       busyConnections: this.connections.filter(c => !c.isAvailable()).length,
@@ -446,13 +451,14 @@ class RmPool extends EventEmitter {
     const info = this.getInfo() as any;
     console.log('\n=== Pool Info ===');
     console.log(`Pool ID: ${info.id}`);
+    console.log(`Backend: ${info.backend}`);
     console.log(`Total Connections: ${info.totalConnections}/${this.maxSize}`);
     console.log(`Available: ${info.availableConnections}`);
     console.log(`Busy: ${info.busyConnections}`);
     console.log('\nConnections:');
     this.connections.forEach((conn, idx) => {
       const connInfo = conn.getInfo() as any;
-      console.log(`  [${idx}] Job: ${connInfo.jobName} | Available: ${connInfo.available} | Status: ${connInfo.status}`);
+      console.log(`  [${idx}] Job: ${connInfo.jobName} | Backend: ${connInfo.backend} | Available: ${connInfo.available} | Status: ${connInfo.status}`);
     });
     console.log('=================\n');
   }

@@ -42,7 +42,7 @@ export class MapepireBackend implements BackendConnection {
     this.jobName = this.job.id;
 
     if (!suppressConnectionMessage)
-      this.rmLogger.info(`Connected (mapepire-js)`);
+      this.rmLogger.info(`Connected (mapepire)`);
 
     for (let i = 0; i < this.initCommands.length; i += 1) {
       const { command, type = 'cl' } = this.initCommands[i];

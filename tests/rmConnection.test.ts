@@ -261,6 +261,7 @@ describe('RmConnection', () => {
       const info = conn.getInfo() as any;
 
       expect(info.jobName).toBeDefined();
+      expect(info.backend).toBe('mapepire');
       expect(info.available).toBe(false);
       expect(info.status).toBe(States.JobStatus.READY);
     });

@@ -66,7 +66,7 @@ export class IdbBackend implements BackendConnection {
     this.status = 'ready';
 
     if (!suppressConnectionMessage)
-      this.rmLogger.info(`Connected (idb-pconnector)`);
+      this.rmLogger.info(`Connected (idb)`);
 
     // Execute init commands
     for (let i = 0; i < this.initCommands.length; i += 1) {

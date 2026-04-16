@@ -35,6 +35,7 @@ describe('Debug and Info Methods', () => {
       expect(info).toHaveProperty('poolId', 'test-pool');
       expect(info).toHaveProperty('poolIndex', 1);
       expect(info).toHaveProperty('jobName');
+      expect(info).toHaveProperty('backend', (process.platform as string) === 'os400' ? 'idb' : 'mapepire');
       expect(info).toHaveProperty('available', false);
       expect(info).toHaveProperty('status');
       expect(info).toHaveProperty('hasExpiryTimer', false);
@@ -62,6 +63,7 @@ describe('Debug and Info Methods', () => {
       const info = pool.getInfo() as any;
 
       expect(info).toHaveProperty('id', 'test-pool');
+      expect(info).toHaveProperty('backend', 'auto');
       expect(info).toHaveProperty('totalConnections', 2);
       expect(info).toHaveProperty('availableConnections');
       expect(info).toHaveProperty('busyConnections');
