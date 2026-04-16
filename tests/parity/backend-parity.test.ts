@@ -1022,9 +1022,9 @@ describeIf('Backend Parity', () => {
         expect(mapRes.data[0].COL_DATE).toBe('2024-06-15');
         expect(idbRes.data[0].COL_TIME).toBe('13.45.30');
         expect(mapRes.data[0].COL_TIME).toBe('13.45.30');
-        // TIMESTAMP still differs — see docs/BACKEND-DIFFERENCES.md.
+        // TIMESTAMP: mapepire normalises JT400 format to DB2 native
         expect(idbRes.data[0].COL_TIMESTAMP).toBe('2024-06-15-13.45.30.123456');
-        expect(mapRes.data[0].COL_TIMESTAMP).toBe('2024-06-15 13:45:30.123456');
+        expect(mapRes.data[0].COL_TIMESTAMP).toBe('2024-06-15-13.45.30.123456');
       });
     });
 

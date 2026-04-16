@@ -64,7 +64,7 @@ SQL data type.
 | **DECFLOAT** | Returned as `string` (preserves full precision) | Returned as `number` (truncated to JS double precision) |
 | **DATE format** | `YYYY-MM-DD` (ISO default forced) | `YYYY-MM-DD` (ISO default forced) |
 | **TIME format** | `HH.MM.SS` (DB2 ISO default forced — dots, not colons) | `HH.MM.SS` (DB2 ISO default forced — dots, not colons) |
-| **TIMESTAMP format** | `YYYY-MM-DD-HH.MM.SS.NNNNNN` (DB2 native, driver-fixed) | `YYYY-MM-DD HH:MM:SS.NNNNNN` (driver-fixed) |
+| **TIMESTAMP format** | `YYYY-MM-DD-HH.MM.SS.NNNNNN` (DB2 native) | `YYYY-MM-DD-HH.MM.SS.NNNNNN` (normalised from JT400 format to DB2 native) |
 
 ## Features
 

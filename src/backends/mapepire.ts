@@ -59,6 +59,24 @@ export class MapepireBackend implements BackendConnection {
 
   async execute(sql: string, opts: QueryOptions = {}): Promise<RmQueryResult<any>> {
     const result = await this.job.execute(sql, opts);
+
+    // Normalise TIMESTAMP values from JT400 format ("2024-06-15 13:45:30.123456")
+    // to DB2 native format ("2024-06-15-13.45.30.123456") to match the idb backend.
+    if (result.metadata?.columns && result.data?.length > 0) {
+      const tsCols = result.metadata.columns
+        .filter((c: any) => c.type === 'TIMESTAMP')
+        .map((c: any) => c.name);
+      if (tsCols.length > 0) {
+        for (const row of result.data as Record<string, any>[]) {
+          for (const col of tsCols) {
+            if (typeof row[col] === 'string') {
+              row[col] = row[col].replace(' ', '-').replace(/:/g, '.');
+            }
+          }
+        }
+      }
+    }
+
     return { ...result, job: this.jobName! };
   }
 
