@@ -80,7 +80,7 @@ SQL data type.
 | **JDBCOptions `decimal separator`** | Not handled — numeric values are returned as JS numbers regardless of this setting | Passed through to JT400 if set explicitly; no default injected |
 | **Default commitment control** | `SQL_TXN_NO_COMMIT` set explicitly (required for LOB column operations) | No commitment control by default |
 | **`SET OPTION` statements** | Not allowed (use `setConnAttr` instead) | Supported via JDBC |
-| **Credentials** | Not needed (connects to `*LOCAL`) | Required (`host`, `user`, `password`) |
+| **Credentials** | Optional (`creds: { user?, password?, database? }`). Defaults to `*LOCAL` with current user profile. `database` is an RDB directory entry name (see `WRKRDBDIRE`). | Required (`host`, `user`, `password`) |
 
 ## Libraries Behaviour by Naming Mode
 

@@ -1,5 +1,5 @@
 import { JDBCOptions, DaemonServer } from '@ibm/mapepire-js';
-import { InitCommand, QueryOptions, Logger, LogLevel, RmQueryResult, BackendType, RmConnectionOptions } from './types';
+import { InitCommand, IdbCredentials, QueryOptions, Logger, LogLevel, RmQueryResult, BackendType, RmConnectionOptions, isDaemonServer } from './types';
 import defaultLogger, { RmLogger } from './logger';
 import { BackendConnection } from './backends/types';
 import { MapepireBackend } from './backends/mapepire';
@@ -8,7 +8,7 @@ import { MapepireBackend } from './backends/mapepire';
  * Unified DB2 connection supporting mapepire (remote) and idb-pconnector (native) backends.
  */
 class RmConnection {
-  creds?: DaemonServer;
+  creds?: DaemonServer | IdbCredentials;
   logLevel: LogLevel;
   JDBCOptions: JDBCOptions;
   initCommands: InitCommand[];
@@ -52,12 +52,13 @@ class RmConnection {
 
     if (this.backend === 'idb') {
       const { IdbBackend } = require('./backends/idb');
-      this.backendImpl = new IdbBackend(this.JDBCOptions, this.initCommands, this.rmLogger);
+      const idbCreds = this.creds && !isDaemonServer(this.creds) ? this.creds : undefined;
+      this.backendImpl = new IdbBackend(this.JDBCOptions, this.initCommands, this.rmLogger, idbCreds);
       // Auto-disable keepalive for idb (no WebSocket to keep alive)
       this.keepalive = null;
     } else {
-      if (!this.creds) {
-        throw new Error('RmConnection: creds are required for the mapepire backend');
+      if (!this.creds || !isDaemonServer(this.creds)) {
+        throw new Error('RmConnection: creds with host, user, and password are required for the mapepire backend');
       }
       this.backendImpl = new MapepireBackend(this.creds, this.JDBCOptions, this.initCommands, this.rmLogger);
     }

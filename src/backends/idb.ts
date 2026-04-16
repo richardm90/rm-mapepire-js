@@ -1,5 +1,5 @@
 import { BackendConnection } from './types';
-import { InitCommand, QueryOptions, RmQueryResult } from '../types';
+import { InitCommand, IdbCredentials, QueryOptions, RmQueryResult } from '../types';
 import { RmLogger } from '../logger';
 
 // idb-pconnector types (loaded dynamically)
@@ -38,11 +38,13 @@ export class IdbBackend implements BackendConnection {
   private status: string = 'notStarted';
   private queryCounter: number = 0;
   private IdbModule: any;
+  private idbCreds?: IdbCredentials;
 
-  constructor(JDBCOptions: Record<string, any>, initCommands: InitCommand[], rmLogger: RmLogger) {
+  constructor(JDBCOptions: Record<string, any>, initCommands: InitCommand[], rmLogger: RmLogger, idbCreds?: IdbCredentials) {
     this.JDBCOptions = JDBCOptions;
     this.initCommands = initCommands;
     this.rmLogger = rmLogger;
+    this.idbCreds = idbCreds;
   }
 
   async init(suppressConnectionMessage: boolean = false): Promise<void> {
@@ -57,7 +59,27 @@ export class IdbBackend implements BackendConnection {
     }
 
     const { Connection } = this.IdbModule;
-    this.conn = new Connection({ url: '*LOCAL' });
+    const database = this.idbCreds?.database || '*LOCAL';
+    const user = this.idbCreds?.user;
+    const password = this.idbCreds?.password;
+
+    if (user && !password || !user && password) {
+      throw new Error('IdbBackend: both user and password must be provided together');
+    }
+
+    if (user && password) {
+      // Explicit auth: constructor calls connect(url, user, password) internally
+      this.conn = new Connection({ url: database, username: user, password: password });
+    } else if (database !== '*LOCAL') {
+      // Non-local RDB without auth: constructor only auto-connects for *LOCAL,
+      // so create unconnected then call connect(url) which does dbconn.conn(url)
+      this.conn = new Connection();
+      this.conn.connect(database);
+    } else {
+      // Default: *LOCAL with no auth, constructor auto-connects
+      this.conn = new Connection({ url: '*LOCAL' });
+    }
+
     this.status = 'connecting';
 
     // Apply JDBCOptions (connection attributes + SQL-based options)

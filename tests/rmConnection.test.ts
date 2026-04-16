@@ -76,7 +76,7 @@ describe('RmConnection', () => {
 
     it('should throw if creds missing for mapepire backend', async () => {
       const conn = new RmConnection({ backend: 'mapepire' });
-      await expect(conn.init()).rejects.toThrow('creds are required');
+      await expect(conn.init()).rejects.toThrow('creds with host, user, and password are required for the mapepire backend');
     });
 
     it('should execute CL init commands via parameterized QCMDEXC', async () => {

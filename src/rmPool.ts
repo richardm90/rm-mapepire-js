@@ -1,13 +1,13 @@
 import { EventEmitter } from 'events';
 import RmPoolConnection from './rmPoolConnection';
-import { PoolConfig, InitialConnections, IncrementConnections, JDBCOptions, DaemonServer, QueryOptions, Logger, LogLevel, RmQueryResult, BackendType } from './types';
+import { PoolConfig, InitialConnections, IncrementConnections, JDBCOptions, DaemonServer, IdbCredentials, QueryOptions, Logger, LogLevel, RmQueryResult, BackendType } from './types';
 import defaultLogger, { RmLogger } from './logger';
 
 class RmPool extends EventEmitter {
   connections: RmPoolConnection[];
   id: string;
   config: PoolConfig;
-  creds?: DaemonServer;
+  creds?: DaemonServer | IdbCredentials;
   maxSize: number;
   initialConnections: InitialConnections;
   incrementConnections: IncrementConnections;
@@ -53,11 +53,9 @@ class RmPool extends EventEmitter {
     this.id = config.id;
     this.config = config.config || {
       id: config.id,
-      PoolOptions: {
-        creds: { host: '', user: '', password: '' }
-      }
+      PoolOptions: {}
     };
-    const opts = this.config.PoolOptions || { creds: { host: '', user: '', password: '' } };
+    const opts = this.config.PoolOptions || {};
 
     this.creds = opts.creds;
     this.maxSize = opts.maxSize || 20;

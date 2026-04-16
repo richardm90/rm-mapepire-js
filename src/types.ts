@@ -3,10 +3,20 @@ import type RmPool from './rmPool';
 
 export { JDBCOptions, DaemonServer };
 
+export interface IdbCredentials {
+  user?: string;
+  password?: string;
+  database?: string; // RDB directory entry name (from WRKRDBDIRE), defaults to '*LOCAL'
+}
+
+export function isDaemonServer(creds: DaemonServer | IdbCredentials): creds is DaemonServer {
+  return 'host' in creds;
+}
+
 export type BackendType = 'mapepire' | 'idb' | 'auto';
 
 export interface RmConnectionOptions {
-  creds?: DaemonServer;
+  creds?: DaemonServer | IdbCredentials;
   JDBCOptions?: JDBCOptions;
   initCommands?: InitCommand[];
   logLevel?: LogLevel;
@@ -42,7 +52,7 @@ export interface HealthCheckConfig {
 }
 
 export interface PoolOptions {
-  creds?: DaemonServer;
+  creds?: DaemonServer | IdbCredentials;
   maxSize?: number;
   initialConnections?: InitialConnections;
   incrementConnections?: IncrementConnections;

@@ -21,6 +21,54 @@ describe('IdbBackend', () => {
     jest.clearAllMocks();
   });
 
+  describe('credentials', () => {
+    it('should connect to *LOCAL with no creds by default', async () => {
+      const backend = new IdbBackend({}, [], rmLogger);
+      await backend.init(true);
+
+      const conn = getLastConnection();
+      expect(conn.opts).toEqual({ url: '*LOCAL' });
+      expect(conn.connect).not.toHaveBeenCalled();
+    });
+
+    it('should connect to a remote RDB without auth', async () => {
+      const backend = new IdbBackend({}, [], rmLogger, { database: 'MYRDBE' });
+      await backend.init(true);
+
+      const conn = getLastConnection();
+      expect(conn.opts).toBeUndefined();
+      expect(conn.connect).toHaveBeenCalledWith('MYRDBE');
+    });
+
+    it('should connect to *LOCAL with user and password (profile swap)', async () => {
+      const backend = new IdbBackend({}, [], rmLogger, { user: 'OTHERUSER', password: 'secret' });
+      await backend.init(true);
+
+      const conn = getLastConnection();
+      expect(conn.opts).toEqual({ url: '*LOCAL', username: 'OTHERUSER', password: 'secret' });
+      expect(conn.connect).not.toHaveBeenCalled();
+    });
+
+    it('should connect to a remote RDB with user and password', async () => {
+      const backend = new IdbBackend({}, [], rmLogger, { database: 'MYRDBE', user: 'REMOTEUSER', password: 'secret' });
+      await backend.init(true);
+
+      const conn = getLastConnection();
+      expect(conn.opts).toEqual({ url: 'MYRDBE', username: 'REMOTEUSER', password: 'secret' });
+      expect(conn.connect).not.toHaveBeenCalled();
+    });
+
+    it('should throw if user is provided without password', async () => {
+      const backend = new IdbBackend({}, [], rmLogger, { user: 'OTHERUSER' });
+      await expect(backend.init(true)).rejects.toThrow('both user and password must be provided together');
+    });
+
+    it('should throw if password is provided without user', async () => {
+      const backend = new IdbBackend({}, [], rmLogger, { password: 'secret' });
+      await expect(backend.init(true)).rejects.toThrow('both user and password must be provided together');
+    });
+  });
+
   describe('applyJDBCOptions', () => {
     it('should default to SQL_TXN_NO_COMMIT when no transaction isolation set', async () => {
       const backend = new IdbBackend({}, [], rmLogger);

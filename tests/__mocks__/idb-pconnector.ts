@@ -35,11 +35,13 @@ class MockStatement {
 const instances: Connection[] = [];
 
 export class Connection {
+  opts?: any;
   setConnAttr = jest.fn();
   setLibraryList = jest.fn();
   connect = jest.fn().mockReturnThis();
 
-  constructor(_opts?: any) {
+  constructor(opts?: any) {
+    this.opts = opts;
     instances.push(this);
   }
 

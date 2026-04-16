@@ -81,9 +81,21 @@ const conn = new RmConnection({
   creds: { host: '...', user: '...', password: '...' },
 });
 
-// Native (idb) — no creds needed, connects to *LOCAL
+// Native (idb) — no creds needed, connects to *LOCAL as current user
 const conn = new RmConnection({
   backend: 'idb',
+});
+
+// Native (idb) — profile swap on *LOCAL
+const conn = new RmConnection({
+  backend: 'idb',
+  creds: { user: 'OTHERUSER', password: 'secret' },
+});
+
+// Native (idb) — remote RDB via directory entry (WRKRDBDIRE)
+const conn = new RmConnection({
+  backend: 'idb',
+  creds: { database: 'REMOTERDB', user: 'REMOTEUSER', password: 'secret' },
 });
 
 // Auto-detect

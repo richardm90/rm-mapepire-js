@@ -1,12 +1,12 @@
 import RmConnection from './rmConnection';
 import { JDBCOptions, DaemonServer } from '@ibm/mapepire-js';
-import { PoolConfig, InitCommand, QueryOptions, Logger, LogLevel, RmQueryResult, BackendType } from './types';
+import { PoolConfig, IdbCredentials, InitCommand, QueryOptions, Logger, LogLevel, RmQueryResult, BackendType } from './types';
 import defaultLogger, { RmLogger } from './logger';
 
 class RmPoolConnection {
   poolId: string;
   poolIndex: number | null;
-  creds?: DaemonServer;
+  creds?: DaemonServer | IdbCredentials;
   logLevel: LogLevel;
   JDBCOptions: JDBCOptions;
   initCommands: InitCommand[];
