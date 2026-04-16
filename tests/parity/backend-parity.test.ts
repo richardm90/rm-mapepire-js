@@ -862,7 +862,9 @@ describeIf('Backend Parity', () => {
           COL_VARBINARY  VARBINARY(64),
           COL_BLOB       BLOB(1K),
           COL_GRAPHIC    GRAPHIC(10) CCSID 13488,
-          COL_VARGRAPHIC VARGRAPHIC(40) CCSID 13488
+          COL_VARGRAPHIC VARGRAPHIC(40) CCSID 13488,
+          COL_DF16       DECFLOAT(16),
+          COL_DF34       DECFLOAT(34)
         )`);
 
         // Row 1: all values populated
@@ -877,10 +879,11 @@ describeIf('Backend Parity', () => {
           CAST(X'48454C4C4F0000000000000000000000' AS BINARY(16)),
           CAST(X'DEADBEEF' AS VARBINARY(64)),
           CAST(X'0102030405' AS BLOB(1K)),
-          'TestGraph', 'VarGraphic'
+          'TestGraph', 'VarGraphic',
+          12345.6789, 98765432101234.5678901234567890
         )`);
 
-        // Row 2: all nulls (except PK)
+        // Row 2: all nulls (except PK and ROW_LABEL)
         await setup.execute(
           `INSERT INTO ${DT_TABLE} (ROW_ID, ROW_LABEL) VALUES (2, 'ALL_NULLS')`
         );
@@ -896,7 +899,8 @@ describeIf('Backend Parity', () => {
           CAST(X'00000000000000000000000000000000' AS BINARY(16)),
           CAST(X'' AS VARBINARY(64)),
           CAST(X'' AS BLOB(1K)),
-          '          ', ''
+          '          ', '',
+          0.0, -1.23456789E+10
         )`);
       } finally {
         await setup.close();
@@ -1087,6 +1091,12 @@ describeIf('Backend Parity', () => {
         expect(idbRow.COL_DATE).toBeNull();
         expect(idbRow.COL_BLOB).toBeNull();
 
+        // DECFLOAT nulls
+        expect(idbRow.COL_DF16).toBeNull();
+        expect(mapRow.COL_DF16).toBeNull();
+        expect(idbRow.COL_DF34).toBeNull();
+        expect(mapRow.COL_DF34).toBeNull();
+
         // CLOB: idb returns empty string for NULL, mapepire returns null
         expect(idbRow.COL_CLOB).toBe('');
         expect(mapRow.COL_CLOB).toBeNull();
@@ -1119,6 +1129,22 @@ describeIf('Backend Parity', () => {
         const mapDouble = mapRes.data[0].COL_DOUBLE;
         const relError = Math.abs((idbDouble - mapDouble) / mapDouble);
         expect(relError).toBeLessThan(1e-5);
+      });
+    });
+
+    // ----- DECFLOAT -----
+
+    it('DECFLOAT(16) and DECFLOAT(34) values', async () => {
+      await withBothBackends({}, async (idb, mapepire) => {
+        const sql = `SELECT COL_DF16, COL_DF34 FROM ${DT_TABLE} WHERE ROW_ID = 1`;
+        const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+
+        // idb returns DECFLOAT as strings (preserving full precision),
+        // mapepire returns as numbers (truncated to JS double precision)
+        expect(idbRes.data[0].COL_DF16).toBe('12345.6789');
+        expect(mapRes.data[0].COL_DF16).toBe(12345.6789);
+        expect(idbRes.data[0].COL_DF34).toBe('98765432101234.5678901234567890');
+        expect(mapRes.data[0].COL_DF34).toBe(98765432101234.56);
       });
     });
 
@@ -1180,60 +1206,6 @@ describeIf('Backend Parity', () => {
       });
     });
 
-    // ----- DECFLOAT (V7R4+) -----
-
-    describe('DECFLOAT (V7R4+)', () => {
-      const DF_TABLE = `${DT_LIB}.DT_DECFLOAT`;
-      let supported = true;
-
-      beforeAll(async () => {
-        const setup = new RmConnection({ backend: 'idb' });
-        await setup.init(true);
-        try {
-          await setup.execute(`CREATE OR REPLACE TABLE ${DF_TABLE} (
-            ROW_ID INT NOT NULL, COL_DF16 DECFLOAT(16), COL_DF34 DECFLOAT(34)
-          )`);
-          await setup.execute(`INSERT INTO ${DF_TABLE} VALUES (1, 12345.6789, 98765432101234.5678901234567890)`);
-          await setup.execute(`INSERT INTO ${DF_TABLE} VALUES (2, NULL, NULL)`);
-        } catch (e) {
-          supported = false;
-          console.log('DECFLOAT type not supported on this IBM i version, skipping');
-        } finally {
-          await setup.close();
-        }
-      });
-
-      afterAll(async () => {
-        if (!supported) return;
-        const teardown = new RmConnection({ backend: 'idb' });
-        await teardown.init(true);
-        try {
-          await teardown.execute(`DROP TABLE ${DF_TABLE}`);
-        } catch (e) { /* best-effort */ }
-        finally { await teardown.close(); }
-      });
-
-      it('DECFLOAT(16) and DECFLOAT(34) values match', async () => {
-        if (!supported) return;
-        await withBothBackends({}, async (idb, mapepire) => {
-          const sql = `SELECT ROW_ID, COL_DF16, COL_DF34 FROM ${DF_TABLE} ORDER BY ROW_ID`;
-          const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
-
-          // Row 1: idb returns DECFLOAT as strings (preserving full precision),
-          // mapepire returns as numbers (truncated to JS double precision)
-          expect(idbRes.data[0].COL_DF16).toBe('12345.6789');
-          expect(mapRes.data[0].COL_DF16).toBe(12345.6789);
-          expect(idbRes.data[0].COL_DF34).toBe('98765432101234.5678901234567890');
-          expect(mapRes.data[0].COL_DF34).toBe(98765432101234.56);
-
-          // Row 2: nulls match on both backends
-          expect(idbRes.data[1].COL_DF16).toBeNull();
-          expect(mapRes.data[1].COL_DF16).toBeNull();
-          expect(idbRes.data[1].COL_DF34).toBeNull();
-          expect(mapRes.data[1].COL_DF34).toBeNull();
-        });
-      });
-    });
   });
 
   // ===================================================================
