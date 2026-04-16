@@ -33,7 +33,7 @@ class RmConnection {
     this.backend = opts.backend || 'auto';
     this.multiplex = opts.multiplex ?? false;
     this.keepaliveTimerId = null;
-    this.rmLogger = new RmLogger(this.logger, this.logLevel, 'RmConnection');
+    this.rmLogger = new RmLogger(this.logger, this.logLevel, 'RmConnection', opts.logPrefix);
   }
 
   private resolveBackend(): 'mapepire' | 'idb' {

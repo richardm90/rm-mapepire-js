@@ -11,6 +11,7 @@ export interface RmConnectionOptions {
   initCommands?: InitCommand[];
   logLevel?: LogLevel;
   logger?: Logger;
+  logPrefix?: string;
   keepalive?: number | null;
   backend?: BackendType;
   multiplex?: boolean;

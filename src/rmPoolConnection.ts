@@ -50,6 +50,7 @@ class RmPoolConnection {
       logLevel: this.logLevel,
       logger: this.logger,
       keepalive: this.keepalive,
+      logPrefix: `Pool: ${this.poolId} Connection: ${this.poolIndex}`,
       backend: this.backend,
       multiplex: this.multiplex,
     });
