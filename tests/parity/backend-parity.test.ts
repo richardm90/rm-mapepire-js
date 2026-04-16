@@ -1007,12 +1007,36 @@ describeIf('Backend Parity', () => {
         const sql = `SELECT COL_DATE, COL_TIME, COL_TIMESTAMP FROM ${DT_TABLE} WHERE ROW_ID = 1`;
         const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
 
-        // Raw date/time formats differ between backends (documented in docs/BACKEND-DIFFERENCES.md).
-        // The canonical VARCHAR_FORMAT test validates correctness; here we just verify
-        // both backends return data without error.
+        // With ISO format defaults injected on both backends, DATE and TIME
+        // now match byte-for-byte. Note DB2's ISO time format uses '.' as the
+        // separator, not ':' — the `time separator` default is therefore a
+        // no-op when `time format=iso`. TIMESTAMP is driver-fixed (DB2 native
+        // on idb, `YYYY-MM-DD HH:MM:SS.ffffff` on mapepire) and still diverges.
         expect(idbRes.data.length).toBe(1);
         expect(mapRes.data.length).toBe(1);
+        expect(idbRes.data[0].COL_DATE).toBe('2024-06-15');
+        expect(mapRes.data[0].COL_DATE).toBe('2024-06-15');
+        expect(idbRes.data[0].COL_TIME).toBe('13.45.30');
+        expect(mapRes.data[0].COL_TIME).toBe('13.45.30');
+        // TIMESTAMP still differs — see docs/BACKEND-DIFFERENCES.md.
+        expect(idbRes.data[0].COL_TIMESTAMP).toBe('2024-06-15-13.45.30.123456');
+        expect(mapRes.data[0].COL_TIMESTAMP).toBe('2024-06-15 13:45:30.123456');
       });
+    });
+
+    it('honours caller-supplied date format override', async () => {
+      await withBothBackends(
+        { JDBCOptions: { 'date format': 'usa', 'date separator': '/' } as any },
+        async (idb, mapepire) => {
+          const sql = `VALUES CAST('2024-06-15' AS DATE)`;
+          const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+          // USA format is MM/DD/YYYY on both backends.
+          const idbVal = Object.values(idbRes.data[0])[0];
+          const mapVal = Object.values(mapRes.data[0])[0];
+          expect(idbVal).toBe('06/15/2024');
+          expect(mapVal).toBe('06/15/2024');
+        },
+      );
     });
 
     // ----- Binary types -----

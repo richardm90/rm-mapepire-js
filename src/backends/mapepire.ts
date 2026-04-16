@@ -19,7 +19,21 @@ export class MapepireBackend implements BackendConnection {
   }
 
   async init(suppressConnectionMessage: boolean = false): Promise<void> {
-    this.job = new SQLJob(this.JDBCOptions);
+    // Caller-wins-default-fills: inject ISO-leaning format defaults when the
+    // caller hasn't set them, so both backends return consistently formatted
+    // date/time values. Spread order ensures caller values always win.
+    const FORMAT_DEFAULTS: Partial<JDBCOptions> = {
+      'date format': 'iso',
+      'date separator': '/',
+      'time format': 'iso',
+      'time separator': ':',
+    };
+    const effectiveOptions: JDBCOptions = { ...FORMAT_DEFAULTS, ...this.JDBCOptions };
+    for (const key of Object.keys(FORMAT_DEFAULTS) as (keyof JDBCOptions)[]) {
+      const fromCaller = (this.JDBCOptions as any)[key] !== undefined;
+      this.rmLogger.debug(`Set ${key}: ${(effectiveOptions as any)[key]}${fromCaller ? '' : ' (default)'}`);
+    }
+    this.job = new SQLJob(effectiveOptions);
 
     if (this.job.getStatus() === States.JobStatus.NOT_STARTED) {
       await this.job.connect(this.creds);

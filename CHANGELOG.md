@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Four new JDBCOptions are now mapped onto the idb backend: `date format`, `date separator`, `time format`, and `time separator`. Values follow the JT400 property spellings (e.g. `iso`, `mdy`, `/`, `:`) and are translated to `setConnAttr(SQL_ATTR_DATE_FMT / SQL_ATTR_DATE_SEP / SQL_ATTR_TIME_FMT / SQL_ATTR_TIME_SEP)` using the matching `SQL_FMT_*` / `SQL_SEP_*` constants exported by `idb-connector`.
+- Both backends now inject ISO-leaning defaults for the four date/time format options when the caller doesn't supply them: `date format=iso`, `date separator=/`, `time format=iso`, `time separator=:`. Caller-supplied values always win. This is the first case where rm-connector-js injects a default on the mapepire side — callers who relied on the QZDASOINIT prestart job's `DATFMT`/`DATSEP`/`TIMFMT` (which on US-locale systems typically resolves to `*MDY` via `QDATFMT`) must now pass explicit format values to restore the previous behaviour. The motivation is backend parity: a pool with no formatting options now returns DATE and TIME columns identically on both backends (`"2024-06-15"` for DATE, `"13.45.30"` for TIME) instead of differing values. Note that DB2's `SQL_FMT_ISO` / JT400 `"iso"` time format uses `.` as the separator, not `:` — this is a DB2 CLI / JT400 quirk (`SQL_FMT_JIS` or `SQL_FMT_HMS` with an explicit `time separator` give colons). The `time separator` default of `:` is therefore applied but has no effect when `time format=iso`.
+
+### Known limitations
+
+- `TIMESTAMP` values still differ between backends (`"YYYY-MM-DD-HH.MM.SS.NNNNNN"` on idb vs `"YYYY-MM-DD HH:MM:SS.NNNNNN"` on mapepire). Neither driver exposes a knob for the timestamp literal format, so unifying that one would require per-row post-processing and is out of scope for this change.
+- When `date format` is `iso`, `usa`, `eur`, or `jis`, DB2 hard-codes the separator and the `date separator` option has no effect (same for `time format` / `time separator` under those values). This is a DB2 CLI / JT400 limitation — the options are still honoured on MDY/DMY/YMD/JUL formats.
+
 ## [1.0.3] - 2026-04-15
 
 ### Added

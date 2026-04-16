@@ -216,6 +216,25 @@ export class IdbBackend implements BackendConnection {
       SQL_ATTR_AUTOCOMMIT,
       SQL_TRUE,
       SQL_FALSE,
+      SQL_ATTR_DATE_FMT,
+      SQL_ATTR_DATE_SEP,
+      SQL_ATTR_TIME_FMT,
+      SQL_ATTR_TIME_SEP,
+      SQL_FMT_ISO,
+      SQL_FMT_USA,
+      SQL_FMT_EUR,
+      SQL_FMT_JIS,
+      SQL_FMT_MDY,
+      SQL_FMT_DMY,
+      SQL_FMT_YMD,
+      SQL_FMT_JUL,
+      SQL_FMT_HMS,
+      SQL_SEP_SLASH,
+      SQL_SEP_DASH,
+      SQL_SEP_PERIOD,
+      SQL_SEP_COMMA,
+      SQL_SEP_BLANK,
+      SQL_SEP_COLON,
     } = this.IdbModule;
 
     // --- Connection attributes (must be set before any SQL) ---
@@ -281,8 +300,63 @@ export class IdbBackend implements BackendConnection {
       }
     }
 
+    // --- Format attributes (date/time/decimal) ---
+    // Caller-wins-default-fills: caller's value is translated and applied when
+    // present; otherwise we force the same ISO-leaning defaults the mapepire
+    // backend injects, so both backends return consistently formatted data.
+
+    const DATE_FORMAT_MAP: Record<string, number> = {
+      mdy: SQL_FMT_MDY, dmy: SQL_FMT_DMY, ymd: SQL_FMT_YMD,
+      usa: SQL_FMT_USA, iso: SQL_FMT_ISO, eur: SQL_FMT_EUR,
+      jis: SQL_FMT_JIS, julian: SQL_FMT_JUL,
+    };
+    const TIME_FORMAT_MAP: Record<string, number> = {
+      hms: SQL_FMT_HMS, usa: SQL_FMT_USA, iso: SQL_FMT_ISO,
+      eur: SQL_FMT_EUR, jis: SQL_FMT_JIS,
+    };
+    const DATE_SEP_MAP: Record<string, number> = {
+      '/': SQL_SEP_SLASH, '-': SQL_SEP_DASH, '.': SQL_SEP_PERIOD,
+      ',': SQL_SEP_COMMA, 'b': SQL_SEP_BLANK,
+    };
+    const TIME_SEP_MAP: Record<string, number> = {
+      ':': SQL_SEP_COLON, '.': SQL_SEP_PERIOD,
+      ',': SQL_SEP_COMMA, 'b': SQL_SEP_BLANK,
+    };
+
+    const applyFormatAttr = (
+      key: string,
+      attr: number,
+      map: Record<string, number>,
+      defaultValue: number,
+      defaultLabel: string,
+    ): void => {
+      const raw = opts[key];
+      let value: number;
+      let label: string;
+      if (raw === undefined) {
+        value = defaultValue;
+        label = `${defaultLabel} (default)`;
+      } else if (map[raw] !== undefined) {
+        value = map[raw];
+        label = String(raw);
+      } else {
+        value = defaultValue;
+        label = `${defaultLabel} (default; unknown value '${raw}')`;
+      }
+      this.conn.setConnAttr(attr, value);
+      this.rmLogger.debug(`Set ${key}: ${label}`);
+    };
+
+    applyFormatAttr('date format',       SQL_ATTR_DATE_FMT,    DATE_FORMAT_MAP, SQL_FMT_ISO,    'iso');
+    applyFormatAttr('date separator',    SQL_ATTR_DATE_SEP,    DATE_SEP_MAP,    SQL_SEP_SLASH,  '/');
+    applyFormatAttr('time format',       SQL_ATTR_TIME_FMT,    TIME_FORMAT_MAP, SQL_FMT_ISO,    'iso');
+    applyFormatAttr('time separator',    SQL_ATTR_TIME_SEP,    TIME_SEP_MAP,    SQL_SEP_COLON,  ':');
+
     // Log warnings for other JDBC options that don't map to idb
-    const mappedKeys = ['libraries', 'naming', 'transaction isolation', 'auto commit'];
+    const mappedKeys = [
+      'libraries', 'naming', 'transaction isolation', 'auto commit',
+      'date format', 'date separator', 'time format', 'time separator',
+    ];
     for (const key of Object.keys(opts)) {
       if (!mappedKeys.includes(key)) {
         this.rmLogger.debug(`JDBCOption '${key}' is not supported by idb backend, ignoring`);

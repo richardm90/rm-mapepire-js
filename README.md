@@ -497,3 +497,9 @@ git checkout dev
 git merge main
 git push origin dev
 ```
+
+## Useful References
+
+* [IBM Toolbox for Java JDBC properties](https://javadoc.io/static/net.sf.jt400/jt400/21.0.0/com/ibm/as400/access/doc-files/JDBCProperties.html)
+* [SQL CLI: SQLSetConnectAttr - Set a connection attribute](https://www.ibm.com/docs/en/i/7.6.0?topic=functions-sqlsetconnectattr-set-connection-attribute)
+

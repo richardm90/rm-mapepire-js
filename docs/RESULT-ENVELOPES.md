@@ -143,8 +143,8 @@ FROM SYSIBM.SYSDUMMY1
       "COL_CHAR": "HELLO",
       "COL_VARCHAR": "World of DB2 for i",
       "COL_CLOB": "This is a CLOB",
-      "COL_DATE": "06/15/24",
-      "COL_TIME": "13:45:30",
+      "COL_DATE": "2024-06-15",
+      "COL_TIME": "13.45.30",
       "COL_TIMESTAMP": "2024-06-15 13:45:30.123456",
       "COL_BINARY": "48454C4C4F0000000000000000000000",
       "COL_VARBINARY": "DEADBEEF",
@@ -227,8 +227,17 @@ Statement.fetchAll() -> (same row array as Statement.exec above)
 `SQLJob.execute(sql)` already returns a well-structured envelope; the
 `rm-connector-js` mapepire backend passes it straight through and only
 adds its own `job` field at the top level (in addition to the `job`
-nested under `metadata`). Values are identical — no normalisation is
-applied on top of what `mapepire-js` already does.
+nested under `metadata`). The one place the wrapper envelope diverges
+from the raw envelope is **date/time format** — `rm-connector-js`
+injects `date format=iso`, `date separator=/`, `time format=iso`,
+`time separator=:` as defaults on the JDBCOptions
+before constructing the `SQLJob`, which matches what the idb backend
+forces via `SQL_ATTR_DATE_FMT`/`SQL_ATTR_TIME_FMT`. So the raw envelope
+below shows the *job-default* formatting that mapepire-js returns when
+no `date format` is set — which on US-locale systems resolves to `*MDY`
+via the QZDASOINIT prestart job inheriting `QDATFMT=*MDY`. Pass explicit
+`date format`/`time format` values in `JDBCOptions` to override the
+rm-connector-js defaults.
 
 ```json
 {

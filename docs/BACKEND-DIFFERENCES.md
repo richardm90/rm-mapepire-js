@@ -62,9 +62,9 @@ SQL data type.
 | **NULL CLOB** | Returned as empty string `""` | Returned as `null` |
 | **BOOLEAN** | Returned as strings (`"TRUE"`, `"FALSE"`) — pending [idb-connector#191](https://github.com/IBM/nodejs-idb-connector/pull/191) for buffer fix | Returned as native `true`/`false` |
 | **DECFLOAT** | Returned as `string` (preserves full precision) | Returned as `number` (truncated to JS double precision) |
-| **Raw DATE format** | `YYYY-MM-DD` | `DD/MM/YY` |
-| **Raw TIME format** | `HH.MM.SS` | `HH:MM:SS` |
-| **Raw TIMESTAMP format** | `YYYY-MM-DD-HH.MM.SS.NNNNNN` | `YYYY-MM-DD HH:MM:SS.NNNNNN` |
+| **DATE format** | `YYYY-MM-DD` (ISO default forced) | `YYYY-MM-DD` (ISO default forced) |
+| **TIME format** | `HH.MM.SS` (DB2 ISO default forced — dots, not colons) | `HH.MM.SS` (DB2 ISO default forced — dots, not colons) |
+| **TIMESTAMP format** | `YYYY-MM-DD-HH.MM.SS.NNNNNN` (DB2 native, driver-fixed) | `YYYY-MM-DD HH:MM:SS.NNNNNN` (driver-fixed) |
 
 ## Features
 
@@ -75,6 +75,9 @@ SQL data type.
 | **JDBCOptions `naming`** | Mapped to `setConnAttr(SQL_ATTR_DBC_SYS_NAMING)` | Native JDBC support |
 | **JDBCOptions `transaction isolation`** | Mapped to `setConnAttr(SQL_ATTR_COMMIT)` | Native JDBC support |
 | **JDBCOptions `auto commit`** | Mapped to `setConnAttr(SQL_ATTR_AUTOCOMMIT)` | Native JDBC support |
+| **JDBCOptions `date format` / `date separator`** | Mapped to `setConnAttr(SQL_ATTR_DATE_FMT / SQL_ATTR_DATE_SEP)`; defaults to `iso` / `/` when unset | Passed through to JT400; rm-connector-js injects `iso` / `/` defaults when unset |
+| **JDBCOptions `time format` / `time separator`** | Mapped to `setConnAttr(SQL_ATTR_TIME_FMT / SQL_ATTR_TIME_SEP)`; defaults to `iso` / `:` when unset | Passed through to JT400; rm-connector-js injects `iso` / `:` defaults when unset |
+| **JDBCOptions `decimal separator`** | Not handled — numeric values are returned as JS numbers regardless of this setting | Passed through to JT400 if set explicitly; no default injected |
 | **Default commitment control** | `SQL_TXN_NO_COMMIT` set explicitly (required for LOB column operations) | No commitment control by default |
 | **`SET OPTION` statements** | Not allowed (use `setConnAttr` instead) | Supported via JDBC |
 | **Credentials** | Not needed (connects to `*LOCAL`) | Required (`host`, `user`, `password`) |
