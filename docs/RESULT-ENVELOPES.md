@@ -146,9 +146,18 @@ FROM SYSIBM.SYSDUMMY1
       "COL_DATE": "2024-06-15",
       "COL_TIME": "13.45.30",
       "COL_TIMESTAMP": "2024-06-15-13.45.30.123456",
-      "COL_BINARY": "48454C4C4F0000000000000000000000",
-      "COL_VARBINARY": "DEADBEEF",
-      "COL_BLOB": "0102030405",
+      "COL_BINARY": {
+        "type": "Buffer",
+        "data": [72, 69, 76, 76, 79, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+      },
+      "COL_VARBINARY": {
+        "type": "Buffer",
+        "data": [222, 173, 190, 239]
+      },
+      "COL_BLOB": {
+        "type": "Buffer",
+        "data": [1, 2, 3, 4, 5]
+      },
       "COL_GRAPHIC": "TestGraph",
       "COL_VARGRAPHIC": "VarGraphic",
       "COL_BOOLEAN": true
@@ -160,6 +169,16 @@ FROM SYSIBM.SYSDUMMY1
   "job": "018276/QUSER/QZDASOINIT"
 }
 ```
+
+Both wrapper envelopes return `BINARY`, `VARBINARY`, and `BLOB` columns as Node
+`Buffer` instances. The JSON shown above is the default `Buffer` serialization;
+callers who ship results over the wire should convert at the serialization
+boundary with `.toString('hex')` or `.toString('base64')`. The mapepire backend
+internally decodes the hex strings it receives from `@ibm/mapepire-js` into
+`Buffer`s (see the raw envelope section below for the pre-normalisation shape);
+the idb backend returns `Buffer` natively. Binary *parameters* are accepted as
+`Buffer` on both backends — see
+[BACKEND-DIFFERENCES.md](BACKEND-DIFFERENCES.md) for the input contract.
 
 ## Raw `idb-pconnector`
 

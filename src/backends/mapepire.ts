@@ -58,7 +58,20 @@ export class MapepireBackend implements BackendConnection {
   }
 
   async execute(sql: string, opts: QueryOptions = {}): Promise<RmQueryResult<any>> {
-    const result = await this.job.execute(sql, opts);
+    // Convert Buffer parameters to lowercase hex strings for BLOB/BINARY/VARBINARY
+    // bindings — mapepire-js types parameters as string | number and rejects Buffer.
+    // Verified against IBM i via examples/blob-poc-mapepire.js.
+    let effectiveOpts = opts;
+    if (opts.parameters && opts.parameters.some((p: any) => Buffer.isBuffer(p))) {
+      effectiveOpts = {
+        ...opts,
+        parameters: opts.parameters.map((p: any) =>
+          Buffer.isBuffer(p) ? p.toString('hex') : p,
+        ),
+      };
+    }
+
+    const result = await this.job.execute(sql, effectiveOpts);
 
     // Normalise TIMESTAMP values from JT400 format ("2024-06-15 13:45:30.123456")
     // to DB2 native format ("2024-06-15-13.45.30.123456") to match the idb backend.
@@ -71,6 +84,27 @@ export class MapepireBackend implements BackendConnection {
           for (const col of tsCols) {
             if (typeof row[col] === 'string') {
               row[col] = row[col].replace(' ', '-').replace(/:/g, '.');
+            }
+          }
+        }
+      }
+    }
+
+    // Normalise BINARY/VARBINARY/BLOB values from mapepire's uppercase hex strings
+    // to Node Buffer, matching the idb backend which returns Buffer natively.
+    if (result.metadata?.columns && result.data?.length > 0) {
+      const binCols = result.metadata.columns
+        .filter((c: any) => c.type === 'BINARY' || c.type === 'VARBINARY' || c.type === 'BLOB')
+        .map((c: any) => c.name);
+      if (binCols.length > 0) {
+        for (const row of result.data as Record<string, any>[]) {
+          for (const col of binCols) {
+            const v = row[col];
+            if (v == null) continue;
+            if (v === '') {
+              row[col] = Buffer.alloc(0);
+            } else if (typeof v === 'string') {
+              row[col] = Buffer.from(v, 'hex');
             }
           }
         }

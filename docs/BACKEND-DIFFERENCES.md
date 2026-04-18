@@ -60,6 +60,8 @@ SQL data type.
 | **BIGINT type** | Returned as `string` | Returned as `number` |
 | **DOUBLE precision** | Truncated to ~6 significant digits | Full double precision (~15 digits) |
 | **NULL CLOB** | Returned as empty string `""` | Returned as `null` |
+| **BINARY/VARBINARY/BLOB reads** | Returned as Node `Buffer` (native from idb-pconnector) | Returned as Node `Buffer` (wrapper decodes the hex string mapepire-js returns) |
+| **Binary parameters (writes)** | Node `Buffer` passed straight to `Statement.bindParameters` | Node `Buffer` converted to lowercase hex string by the wrapper before being sent to mapepire-js |
 | **BOOLEAN** | Returned as strings (`"TRUE"`, `"FALSE"`) — pending [idb-connector#191](https://github.com/IBM/nodejs-idb-connector/pull/191) for buffer fix | Returned as native `true`/`false` |
 | **DECFLOAT** | Returned as `string` (preserves full precision) | Returned as `number` (truncated to JS double precision) |
 | **DATE format** | `YYYY-MM-DD` (ISO default forced) | `YYYY-MM-DD` (ISO default forced) |
@@ -92,6 +94,68 @@ The `libraries` JDBCOption behaves differently depending on the `naming` mode:
 | `'system'` | All libraries added to the **job library list** (`*LIBL`) | Searches all libraries in order |
 
 Under SQL naming, additional libraries beyond the first are not searchable via unqualified references — use fully qualified names (e.g. `QIWS.QCUSTCDT`) or switch to system naming. Both backends now implement this consistently.
+
+## Binary size limits
+
+Both backends surface binary columns (`BINARY`, `VARBINARY`, `BLOB`) as Node
+`Buffer`, and both accept `Buffer` as a bound parameter. How large a value can
+flow through each path differs significantly.
+
+### Measured ceilings
+
+These round-trip figures (insert + select) were measured on a single-partition
+Power system against IBM i 7.5 with the gated sizing parity test. Re-run
+against your own deployment to measure the ceilings on your network, server,
+and client combination:
+
+```sh
+RM_RUN_SIZING=1 npm run test:parity -- --testNamePattern="BLOB-sizing"
+```
+
+| Size    | idb insert / select | mapepire insert / select |
+|---------|---------------------|--------------------------|
+| 1 KiB   | 9 ms / 6 ms         | 8 ms / 18 ms             |
+| 64 KiB  | 7 ms / 2 ms         | 18 ms / 36 ms            |
+| 1 MiB   | 36 ms / 2 ms        | 387 ms / 574 ms          |
+| 8 MiB   | 378 ms / 28 ms      | 3.0 s / 3.7 s            |
+| 16 MiB  | 760 ms / 86 ms      | 4.4 s / 5.1 s            |
+| 24 MiB  | 1.1 s / 0.6 s       | 7.0 s / 13.2 s           |
+| 32 MiB  | 1.5 s / 1.0 s       | **FAIL** (WS cap)        |
+| 128 MiB | 11.7 s / 4.8 s      | —                        |
+
+- **idb**: round-trips cleanly at every size tested, including 128 MiB. The
+  upper bound is driven by Node heap and `Buffer.constants.MAX_LENGTH` rather
+  than the driver.
+- **mapepire**: round-trips cleanly up to 24 MiB. 32 MiB fails with WebSocket
+  close code 1009 "Resulting message size [52436992] is too large for
+  configured max of [52428800]" — the server-side 50 MiB message cap. Since
+  mapepire wraps the binary value in a lowercase hex string (2× size) inside a
+  JSON envelope, the practical per-row ceiling is roughly 24 MiB of binary.
+
+### Why the two backends behave differently
+
+- **idb backend**: `Buffer` is passed through `Statement.bindParameters` to the
+  native DB2 CLI driver, and returned directly on reads. The wrapper
+  defensively copies each `Buffer` parameter before binding — idb-pconnector's
+  native implementation uses the caller's `Buffer` as scratch space at sizes
+  ≥ 64 KiB (zeros out or overwrites the first bytes with length metadata), so
+  without the copy the caller's original `Buffer` would be corrupted after the
+  call.
+- **mapepire backend**: every binary value goes through a lowercase hex-string
+  intermediate in both directions. This introduces three limits:
+  - **V8 `String::kMaxLength`** — roughly ~512 MB on 32-bit Node and ~1 GB on
+    recent 64-bit Node. Because hex is 2× the byte size, the hard per-value
+    ceiling is ~256–512 MB even if the WebSocket cap were lifted.
+  - **Memory amplification** — during conversion the `Buffer`, the hex string,
+    and the encoded JSON payload all live in memory simultaneously, so peak
+    RSS is roughly 3–4× the payload size.
+  - **WebSocket message size** — mapepire's server imposes a 50 MiB maximum on
+    inbound messages (observed as close code 1009 on 32 MiB BLOB inserts).
+
+Neither backend exposes a streaming LOB API — result sets are read fully into
+memory. For callers that need BLOBs larger than the mapepire ceiling, either
+use the idb backend (when running on IBM i) or plan for a future streaming
+initiative.
 
 ## Logging & Behaviour
 

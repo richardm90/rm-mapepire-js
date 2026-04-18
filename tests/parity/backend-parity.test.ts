@@ -1045,21 +1045,85 @@ describeIf('Backend Parity', () => {
 
     // ----- Binary types -----
 
-    it('binary types (BINARY, VARBINARY)', async () => {
+    it('binary types (BINARY, VARBINARY) return Buffer on both backends', async () => {
       await withBothBackends({}, async (idb, mapepire) => {
-        const sql = `SELECT HEX(COL_BINARY) AS COL_BINARY, HEX(COL_VARBINARY) AS COL_VARBINARY FROM ${DT_TABLE} WHERE ROW_ID = 1`;
+        const sql = `SELECT COL_BINARY, COL_VARBINARY FROM ${DT_TABLE} WHERE ROW_ID = 1`;
         const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+
+        const expectedBinary = Buffer.from('48454C4C4F0000000000000000000000', 'hex');
+        const expectedVarbinary = Buffer.from('DEADBEEF', 'hex');
+
+        for (const res of [idbRes, mapRes]) {
+          expect(Buffer.isBuffer(res.data[0].COL_BINARY)).toBe(true);
+          expect(Buffer.isBuffer(res.data[0].COL_VARBINARY)).toBe(true);
+          expect(res.data[0].COL_BINARY.equals(expectedBinary)).toBe(true);
+          expect(res.data[0].COL_VARBINARY.equals(expectedVarbinary)).toBe(true);
+        }
+
         expect(normalise(idbRes)).toEqual(normalise(mapRes));
       });
     });
 
-    it('BLOB values', async () => {
+    it('BLOB values return Buffer on both backends', async () => {
       await withBothBackends({}, async (idb, mapepire) => {
-        const sql = `SELECT HEX(COL_BLOB) AS COL_BLOB FROM ${DT_TABLE} WHERE ROW_ID = 1`;
+        const sql = `SELECT COL_BLOB FROM ${DT_TABLE} WHERE ROW_ID = 1`;
         const [idbRes, mapRes] = await Promise.all([idb.execute(sql), mapepire.execute(sql)]);
+
+        const expected = Buffer.from([0x01, 0x02, 0x03, 0x04, 0x05]);
+        for (const res of [idbRes, mapRes]) {
+          expect(Buffer.isBuffer(res.data[0].COL_BLOB)).toBe(true);
+          expect(res.data[0].COL_BLOB.equals(expected)).toBe(true);
+        }
+
         expect(normalise(idbRes)).toEqual(normalise(mapRes));
-        expect(idbRes.data[0].COL_BLOB).toBe('0102030405');
       });
+    });
+
+    it('BLOB round-trip: Buffer parameter insert + select', async () => {
+      const RT_TABLE = `${DT_LIB}.BLOB_RT`;
+      const idb = new RmConnection({ ...baseOpts().idb });
+      const mapepire = new RmConnection({ ...baseOpts().mapepire });
+      await Promise.all([idb.init(true), mapepire.init(true)]);
+      try {
+        await idb.execute(`CREATE OR REPLACE TABLE ${RT_TABLE} (ID INTEGER NOT NULL, DATA BLOB(1M))`);
+
+        const idbPayload = Buffer.from([0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0xFF, 0x01, 0x80]);
+        const mapepirePayload = Buffer.from('Round-trip via mapepire Buffer parameter', 'utf8');
+
+        await idb.execute(`DELETE FROM ${RT_TABLE}`);
+        await idb.execute(`INSERT INTO ${RT_TABLE} (ID, DATA) VALUES (?, ?)`, {
+          parameters: [1, idbPayload],
+        });
+        await mapepire.execute(`INSERT INTO ${RT_TABLE} (ID, DATA) VALUES (?, ?)`, {
+          parameters: [2, mapepirePayload],
+        });
+
+        const [idbRead, mapRead] = await Promise.all([
+          idb.execute(`SELECT DATA FROM ${RT_TABLE} WHERE ID = ?`, { parameters: [1] }),
+          mapepire.execute(`SELECT DATA FROM ${RT_TABLE} WHERE ID = ?`, { parameters: [2] }),
+        ]);
+
+        expect(Buffer.isBuffer(idbRead.data[0].DATA)).toBe(true);
+        expect(Buffer.isBuffer(mapRead.data[0].DATA)).toBe(true);
+        expect(idbRead.data[0].DATA.equals(idbPayload)).toBe(true);
+        expect(mapRead.data[0].DATA.equals(mapepirePayload)).toBe(true);
+
+        // Cross-read: each backend reads the other backend's row to prove the
+        // bytes on disk are the same regardless of which backend wrote them.
+        const [idbCross, mapCross] = await Promise.all([
+          idb.execute(`SELECT DATA FROM ${RT_TABLE} WHERE ID = ?`, { parameters: [2] }),
+          mapepire.execute(`SELECT DATA FROM ${RT_TABLE} WHERE ID = ?`, { parameters: [1] }),
+        ]);
+        expect(idbCross.data[0].DATA.equals(mapepirePayload)).toBe(true);
+        expect(mapCross.data[0].DATA.equals(idbPayload)).toBe(true);
+      } finally {
+        try {
+          await idb.execute(`DROP TABLE ${RT_TABLE}`);
+        } catch (e) {
+          // best-effort cleanup
+        }
+        await Promise.all([idb.close(), mapepire.close()]);
+      }
     });
 
     // ----- GRAPHIC types -----
@@ -1842,6 +1906,149 @@ describeIf('Backend Parity', () => {
           await teardown.close();
         }
       }
+    });
+  });
+
+  // ===================================================================
+  // BLOB sizing (gated) — only runs when RM_RUN_SIZING=1
+  //
+  // Measures the practical ceiling for BLOB round-trips on each backend.
+  // The mapepire backend goes through a hex-string intermediate, so the
+  // memory footprint is roughly 3x the payload during conversion.
+  //
+  // Run with:  RM_RUN_SIZING=1 npm run test:parity -- --testNamePattern=BLOB-sizing
+  // ===================================================================
+
+  const runSizing = process.env.RM_RUN_SIZING === '1';
+  const describeSizing = runSizing ? describe : describe.skip;
+
+  describeSizing('BLOB-sizing (gated)', () => {
+    // Single it() that iterates sizes with shared connections. Opening a fresh
+    // connection pair per size triggers a Node/ws zlib assertion on some
+    // platforms under rapid WebSocket churn (node_zlib.cc: zlib_memory_ == 0).
+    jest.setTimeout(900_000); // 15 minutes — 128 MiB round-trips are slow
+
+    const SIZING_LIB = 'PARITYTEST';
+    const SIZING_TABLE = `${SIZING_LIB}.BLOB_SIZING`;
+
+    const SIZES: [string, number][] = [
+      ['1 KiB',   1 * 1024],
+      ['64 KiB',  64 * 1024],
+      ['1 MiB',   1 * 1024 * 1024],
+      ['8 MiB',   8 * 1024 * 1024],
+      ['16 MiB',  16 * 1024 * 1024],
+      ['24 MiB',  24 * 1024 * 1024],
+      ['32 MiB',  32 * 1024 * 1024],
+      ['128 MiB', 128 * 1024 * 1024],
+    ];
+
+    it('round-trips a range of BLOB sizes on both backends', async () => {
+      // Shared connections for the whole suite — one connect + one close per
+      // backend to minimise WebSocket lifecycle churn.
+      const idb = new RmConnection({ backend: 'idb' });
+      const mapepire = new RmConnection({ backend: 'mapepire', creds: MAPEPIRE_CREDS });
+      await Promise.all([idb.init(true), mapepire.init(true)]);
+
+      // Per-backend results: largest size that round-tripped successfully, and
+      // the error message (if any) that ended the run.
+      const results: Record<string, { largestSuccess: string | null; stopReason: string | null }> = {
+        idb: { largestSuccess: null, stopReason: null },
+        mapepire: { largestSuccess: null, stopReason: null },
+      };
+
+      async function runSize(name: string, conn: RmConnection, id: number, label: string, size: number): Promise<boolean> {
+        const payload = Buffer.alloc(size, 0xAB);
+        try {
+          await conn.execute(`DELETE FROM ${SIZING_TABLE} WHERE ID = ?`, { parameters: [id] });
+
+          const insertStart = Date.now();
+          await conn.execute(
+            `INSERT INTO ${SIZING_TABLE} (ID, DATA) VALUES (?, ?)`,
+            { parameters: [id, payload] },
+          );
+          const insertMs = Date.now() - insertStart;
+
+          const selectStart = Date.now();
+          const read = await conn.execute(
+            `SELECT DATA FROM ${SIZING_TABLE} WHERE ID = ?`,
+            { parameters: [id] },
+          );
+          const selectMs = Date.now() - selectStart;
+
+          const gotBuf: Buffer = read.data[0].DATA;
+          if (!Buffer.isBuffer(gotBuf) || gotBuf.length !== size || !gotBuf.equals(payload)) {
+            throw new Error(
+              `round-trip mismatch: got isBuffer=${Buffer.isBuffer(gotBuf)} length=${gotBuf?.length} equals=${gotBuf?.equals?.(payload)}`,
+            );
+          }
+
+          const heapMiB = (process.memoryUsage().heapUsed / (1024 * 1024)).toFixed(1);
+          // eslint-disable-next-line no-console
+          console.log(
+            `  [${name}] ${label}: insert=${insertMs}ms select=${selectMs}ms heap=${heapMiB}MiB OK`,
+          );
+          results[name].largestSuccess = label;
+          return true;
+        } catch (e: any) {
+          const msg = e?.message || String(e);
+          // eslint-disable-next-line no-console
+          console.error(`  [${name}] ${label}: LIMIT HIT — ${msg}`);
+          results[name].stopReason = `${label}: ${msg}`;
+          return false;
+        }
+      }
+
+      try {
+        try {
+          await idb.execute(`CREATE SCHEMA ${SIZING_LIB}`);
+        } catch (e: any) {
+          if (!e?.message?.includes('SQLCODE=-601')) throw e;
+        }
+        await idb.execute(
+          `CREATE OR REPLACE TABLE ${SIZING_TABLE} (ID INTEGER NOT NULL, DATA BLOB(256M))`,
+        );
+
+        // Run each backend independently so one hitting its ceiling does not
+        // stop the other from finishing. Within a backend, stop at the first
+        // failure — larger sizes will fail the same way.
+        for (const [label, size] of SIZES) {
+          // eslint-disable-next-line no-console
+          console.log(`\n--- ${label} (${size.toLocaleString()} bytes) [idb] ---`);
+          const ok = await runSize('idb', idb, 1, label, size);
+          if (!ok) break;
+        }
+
+        for (const [label, size] of SIZES) {
+          // eslint-disable-next-line no-console
+          console.log(`\n--- ${label} (${size.toLocaleString()} bytes) [mapepire] ---`);
+          const ok = await runSize('mapepire', mapepire, 2, label, size);
+          if (!ok) break;
+        }
+
+        try {
+          await idb.execute(`DROP TABLE ${SIZING_TABLE}`);
+        } catch (e) {
+          // best-effort
+        }
+      } finally {
+        await Promise.all([idb.close(), mapepire.close()]);
+      }
+
+      // eslint-disable-next-line no-console
+      console.log('\n=== BLOB sizing summary ===');
+      for (const name of ['idb', 'mapepire']) {
+        const r = results[name];
+        // eslint-disable-next-line no-console
+        console.log(
+          `  ${name}: largest success = ${r.largestSuccess ?? 'none'}` +
+          (r.stopReason ? `, stopped at ${r.stopReason}` : ''),
+        );
+      }
+
+      // The test is diagnostic — we don't fail the run just because a backend
+      // hits a ceiling. We only fail if no size succeeded on either backend.
+      expect(results.idb.largestSuccess).not.toBeNull();
+      expect(results.mapepire.largestSuccess).not.toBeNull();
     });
   });
 });

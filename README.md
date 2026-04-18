@@ -460,6 +460,13 @@ The parity tests require:
 
 ```bash
 IBMI_HOST=myibmi.com IBMI_USER=MYUSER IBMI_PASSWORD=MYPASS npm run test:parity
+
+# or ...
+export IBMI_HOST=myibmi.com IBMI_USER=MYUSER IBMI_PASSWORD=MYPASS
+npm run test:parity
+
+# To measure the practical ceiling for BLOB round-trips on each backend
+RM_RUN_SIZING=1 npm run test:parity -- --testNamePattern="BLOB-sizing"
 ```
 
 When credentials are not set, the tests are automatically skipped:

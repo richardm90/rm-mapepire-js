@@ -129,7 +129,9 @@ export class IdbBackend implements BackendConnection {
         data = await this.execSimple(sql);
       }
 
-      // Trim string values to match mapepire behaviour
+      // Trim string values to match mapepire behaviour. Non-strings (including
+      // Buffer values returned for BINARY/VARBINARY/BLOB columns) pass through
+      // untouched — idb-pconnector already returns those as Node Buffer.
       data = data.map(row => {
         const trimmed: Record<string, any> = {};
         for (const key of Object.keys(row)) {
@@ -204,7 +206,12 @@ export class IdbBackend implements BackendConnection {
     try {
       stmt.enableNumericTypeConversion(true);
       await stmt.prepare(sql);
-      await stmt.bindParameters(params);
+      // Defensive copy for Buffer parameters — idb-pconnector's native
+      // bindParameters uses the caller's Buffer as scratch space at sizes
+      // >= 64 KiB (first bytes get zeroed / overwritten with length
+      // metadata). Copy so the caller's Buffer stays intact.
+      const safeParams = params.map(p => Buffer.isBuffer(p) ? Buffer.from(p) : p);
+      await stmt.bindParameters(safeParams);
       // execute() returns output parameters as an array at runtime, but is typed as void
       const outputParms = (await stmt.execute() as any) || null;
       let data: any[];
