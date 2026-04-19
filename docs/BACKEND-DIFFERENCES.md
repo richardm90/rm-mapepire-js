@@ -136,11 +136,21 @@ RM_RUN_SIZING=1 npm run test:parity -- --testNamePattern="BLOB-sizing"
 
 - **idb backend**: `Buffer` is passed through `Statement.bindParameters` to the
   native DB2 CLI driver, and returned directly on reads. The wrapper
-  defensively copies each `Buffer` parameter before binding — idb-pconnector's
-  native implementation uses the caller's `Buffer` as scratch space at sizes
-  ≥ 64 KiB (zeros out or overwrites the first bytes with length metadata), so
-  without the copy the caller's original `Buffer` would be corrupted after the
-  call.
+  defensively copies each `Buffer` parameter before binding to work around
+  memory-safety bugs in idb-connector's native parameter binding (tracked
+  upstream as [IBM/nodejs-idb-connector#202](https://github.com/IBM/nodejs-idb-connector/issues/202);
+  fix in progress). Without the copy:
+  - the first 16 bytes of the caller's `Buffer` are overwritten with CLI
+    length-indicator bytes at every size tested (8 B upward) — the server-side
+    row is correct, but the caller's `Buffer` is silently clobbered after the
+    call;
+  - a payload of ~1 MiB causes a deterministic `SIGSEGV` during INSERT; and
+  - larger payloads occasionally come back corrupted in the middle of the
+    buffer (and on the server-side row), at a 16-byte window roughly 1 MiB
+    before the end of the payload.
+  The defensive copy fully neutralises the first two; the third is an
+  additional upstream symptom the copy doesn't cover. See
+  `examples/blob-sizing-idb.js` for a standalone reproduction.
 - **mapepire backend**: every binary value goes through a lowercase hex-string
   intermediate in both directions. This introduces three limits:
   - **V8 `String::kMaxLength`** — roughly ~512 MB on 32-bit Node and ~1 GB on
